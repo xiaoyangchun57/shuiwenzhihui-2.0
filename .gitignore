@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+env/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temp
+*.tmp
+*.log
+check_*.py
+find_bad_brace.py
+
+# Project-specific excludes
+*.bak
+frontend/fix.py
+frontend/css/
+frontend/js/
+frontend/index.html
+mobile/
+documents/
+check_*.py
+find_*.py
