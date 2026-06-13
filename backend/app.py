@@ -762,7 +762,14 @@ def generate_sensor_data():
 
         for site in sites:
             sid = site['id']
-            _generate_site_data(site, db, now)
+            try:
+                _generate_site_data(site, db, now)
+            except Exception as e:
+                if 'database is locked' in str(e):
+                    print(f'[Sim] DB locked, skip site {sid}')
+                else:
+                    print(f'[Sim] site {sid} error: {e}')
+                db.rollback()
 
             # 设备在线/离线状态切换
             is_offline = random.random() < 0.03  # 3%概率离线
@@ -869,7 +876,8 @@ def health():
 def get_sites():
     with get_db() as db:
         rows = db.execute("""
-            SELECT s.*, COUNT(d.id) as device_count
+            SELECT s.*, COUNT(d.id) as device_count,
+                   SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) as offline_count
             FROM sites s LEFT JOIN device_shadows d ON s.id=d.site_id
             GROUP BY s.id ORDER BY s.id
         """).fetchall()
@@ -975,6 +983,18 @@ def acknowledge_alert(alert_id):
         # 记录时间线
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('alert', alert_id, 'acknowledged', operator, '确认告警'))
+        db.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/alerts/<int:alert_id>/resolve', methods=['POST'])
+def resolve_alert(alert_id):
+    """办结告警"""
+    data = request.json or {}
+    operator = data.get('operator', '系统')
+    with get_db() as db:
+        db.execute("UPDATE alerts SET status='resolved' WHERE id=?", (alert_id,))
+        db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                   ('alert', alert_id, 'resolved', operator, '办结告警'))
         db.commit()
         return jsonify({'success': True})
 
@@ -1991,7 +2011,11 @@ if __name__ == '__main__':
     backfill_history(72)
     # 生成初始数据（让趋势跟踪生效）
     for _ in range(6):
-        generate_sensor_data()
+        try:
+            if os.environ.get('SKIP_SEED') != '1':
+                generate_sensor_data()
+        except Exception as e:
+            print(f'[Seed] 初始数据生成跳过: {e}')
     # 每30秒自动生成数据
     scheduler.add_job(generate_sensor_data, 'interval', seconds=30, id='simulator')
     print("[Server] 水利运维智慧运营平台 启动成功!")

@@ -27,8 +27,10 @@ env/
 Thumbs.db
 Desktop.ini
 
-# Temp
-*.tmp
+# Temp scripts
+fix_*.py
+rebuild_*.py
+push_meta.json
 *.log
 check_*.py
 find_bad_brace.py
