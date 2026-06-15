@@ -43,5 +43,6 @@ frontend/js/
 frontend/index.html
 mobile/
 documents/
-check_*.py
-find_*.py
+
+# WorkBuddy AI development metadata
+.workbuddy/

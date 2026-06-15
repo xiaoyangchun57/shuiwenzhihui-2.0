@@ -1014,8 +1014,24 @@ def get_site(site_id):
 # --- Sensor Data ---
 @app.route('/api/data/realtime')
 def realtime_data():
-    """各站点最新一条数据"""
+    """各站点最新一条数据（优化：一次查询，不用N+1）"""
     with get_db() as db:
+        # 一次查询获取所有站点的最新传感器数据
+        latest = {}
+        try:
+            latest_rows = db.execute("""
+                SELECT sd.site_id, sd.metric, sd.value, sd.unit, sd.recorded_at
+                FROM sensor_data sd
+                INNER JOIN (
+                    SELECT site_id, MAX(recorded_at) as max_t
+                    FROM sensor_data
+                    GROUP BY site_id
+                ) lm ON sd.site_id = lm.site_id AND sd.recorded_at = lm.max_t
+            """).fetchall()
+            for r in latest_rows:
+                latest[r['site_id']] = r
+        except:
+            pass
         sites = db.execute("""SELECT s.id, s.code, s.name, s.type, s.lat, s.lng,
                    CASE WHEN COUNT(d.id) = 0 THEN 'online'
                         WHEN SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) > 0 THEN 'offline'
@@ -1024,10 +1040,7 @@ def realtime_data():
             GROUP BY s.id""").fetchall()
         result = []
         for s in sites:
-            row = db.execute(
-                "SELECT metric, value, unit, recorded_at FROM sensor_data WHERE site_id=? ORDER BY recorded_at DESC LIMIT 1",
-                (s['id'],)
-            ).fetchone()
+            row = latest.get(s['id'])
             site_dict = dict(s)
             site_dict['latest_value'] = round(row['value'],2) if row else 0
             site_dict['latest_metric'] = row['metric'] if row else ''
@@ -1744,14 +1757,31 @@ def data_arrival_summary():
     """到报率汇总：按项目分类"""
     date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     with get_db() as db:
-        rows = db.execute(
-            "SELECT metric, AVG(arrival_rate) as avg_rate, COUNT(*) as site_count, SUM(CASE WHEN arrival_rate<98 THEN 1 ELSE 0 END) as below_threshold FROM data_arrival WHERE date=? GROUP BY metric",
-            (date,)
-        ).fetchall()
+        # 检查是否有今天的数据，没有则尝试从sensor_data实时计算
+        has_data = db.execute("SELECT COUNT(*) as c FROM data_arrival WHERE date=?", (date,)).fetchone()['c']
+        if has_data == 0:
+            # 回退：从sensor_data统计今天的到报情况
+            rows = db.execute("""
+                SELECT s.type as metric, 
+                    COUNT(DISTINCT sd.site_id) as site_count,
+                    ROUND(AVG(CASE WHEN sd.id IS NOT NULL THEN 100.0 ELSE 0 END),1) as avg_rate,
+                    0 as below_threshold
+                FROM sites s
+                LEFT JOIN sensor_data sd ON s.id = sd.site_id AND sd.recorded_at >= ?
+                GROUP BY s.type
+            """, (date + ' 00:00:00',)).fetchall()
+            # 如果回退也无数据，返回空
+            if not rows or all((r['avg_rate'] or 0) == 0 for r in rows):
+                return jsonify({'total_avg': 0, 'by_metric': []})
+            total_avg = round(sum(r['avg_rate'] or 0 for r in rows) / max(len(rows), 1), 1)
+            return jsonify({
+                'total_avg': total_avg,
+                'by_metric': [dict(r) for r in rows]
+            })
         total = db.execute("SELECT AVG(arrival_rate) as avg FROM data_arrival WHERE date=?", (date,)).fetchone()
         return jsonify({
             'total_avg': round(total['avg'],1) if total and total['avg'] else 0,
-            'by_metric': [dict(r) for r in rows]
+            'by_metric': [dict(r) for r in rows] if has_data > 0 else []
         })
 
 # --- Hotline ---
