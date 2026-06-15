@@ -269,14 +269,12 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
 @keyframes scroll{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
 
 /* popup样式 */
-.site-popup{min-width:200px}
+.site-popup{min-width:200px;max-width:380px}
 .site-popup h4{color:#00e0c0;font-size:14px;margin-bottom:4px}
-.site-popup .row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
+.site-popup .row{display:flex;padding:3px 0;font-size:12px}
 .site-popup .row .rl{color:#5ea8c8}
 .site-popup .row .rv{color:#d0e8ff;font-family:monospace}
-.site-popup .dv{margin-top:6px;padding-top:5px;border-top:1px solid rgba(0,200,180,0.1)}
-.site-popup .dv-title{color:#5ea8c8;font-size:12px;margin-bottom:3px}
-.site-popup .dv-row{font-size:12px;color:#5ea8c8;padding:2px 0}
+.site-popup .sp-alert{font-size:11px;padding:3px 0;display:flex;align-items:center;gap:4px}
 .leaflet-popup-content-wrapper{background:rgba(4,18,42,0.95)!important;color:#d0e8ff!important;border:1px solid rgba(0,200,180,0.2)!important;border-radius:4px!important}
 .leaflet-popup-tip{background:rgba(4,18,42,0.95)!important;border:1px solid rgba(0,200,180,0.2)!important}
 .leaflet-popup-close-button{color:#5ea8c8!important}
@@ -447,17 +445,236 @@ async function _loadAllMarkers(filterType){
     const sa=siteAlerts[s.id]||[];const hasAlert=sa.length>0;
     const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="marker-breathe${hasAlert?' red':''}" style="width:36px;height:36px;background:rgba(6,30,70,0.8);border:2.5px solid rgba(255,255,255,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(0,0,0,0.5),0 0 0 3px rgba(255,255,255,0.1)"><span style="color:${c};display:flex;align-items:center;justify-content:center">${svg}</span></div>`,iconSize:[36,36],iconAnchor:[18,18]})});
     m._sd=s;m._hasAlert=hasAlert;
-    m.on('click',()=>{af('/sites/'+s.id).then(d=>{const dv=d?d.devices||[]:[];const alertHtml=sa.length?sa.slice(0,5).map(x=>`<div class="sp-alert" style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid rgba(0,200,180,0.06);cursor:pointer" onclick="this.closest('.leaflet-popup-close-button')&&document.querySelector('.leaflet-popup-close-button')&&document.querySelector('.leaflet-popup-close-button').click();showAlertDetail(${x.id})"><span style="color:${x.level==='red'?'#ff4760':x.level==='orange'?'#ffa040':'#ffd000'};font-size:10px;padding:0 4px;border-radius:2px;background:rgba(255,255,255,0.05)">${x.level==='red'?'红':x.level==='orange'?'橙':'黄'}</span><span style="flex:1;font-size:11px;color:#b0d4ef">${x.message}</span><span style="font-size:10px;color:#5ea8c8">${(x.created_at||'').substring(11,16)}</span></div>`).join(''):'<div style="color:#4a8aaa;font-size:11px;padding:3px 0">暂无告警</div>';
-    m.bindPopup(`<div class="site-popup"><h4 style="margin-bottom:6px">${s.name} (${s.code})</h4><div class="row"><span class="rl">类型</span><span class="rv">${TM[s.type]||s.type}</span></div><div class="row"><span class="rl">区县</span><span class="rv">${s.district||'-'}</span></div><div class="row"><span class="rl">告警</span><span class="rv" style="color:#ff4760;font-weight:500">${sa.length}条</span></div><div style="margin:6px 0 4px;font-size:11px;color:#00e0c0;border-bottom:1px solid rgba(0,200,180,0.1);padding-bottom:3px">当前告警 <span style="float:right;font-size:10px;color:#5ea8c8;cursor:pointer" onclick="this.closest('.leaflet-popup-close-button')&&document.querySelector('.leaflet-popup-close-button')&&document.querySelector('.leaflet-popup-close-button').click();switchNav('alerts')">查看全部 →</span></div>${alertHtml}</div>`,{maxWidth:240,className:'site-popup-wrap'}).openPopup()})});
+    m.on('click',async ()=>{
+      const d=await af('/sites/'+s.id);
+      const dv=d?d.devices||[]:[];
+      const onlineCount=dv.filter(function(x){return x.status==='online'}).length;
+      const offlineCount=dv.length-onlineCount;
+      const devStatus=dv.length?(onlineCount+'/'+dv.length+'在线'+(offlineCount?' '+offlineCount+'离线':'')):'';
+      const sd=await af('/data/site/'+s.id+'?limit=48');
+      // 计算今日极值
+      var todayExtremes='';
+      if(sd&&sd.length>0){
+        var todayVals=[];
+        var today=new Date().toISOString().substring(0,10);
+        for(var si=0;si<sd.length;si++){
+          var rec=sd[si];
+          if(rec.recorded_at&&rec.recorded_at.indexOf(today)===0&&rec.value){
+            var nv=parseFloat(rec.value);
+            if(!isNaN(nv))todayVals.push({v:nv,m:rec.metric});
+          }
+        }
+        if(todayVals.length>0){
+          var maxV=-999,minV=9999;
+          var maxM='',minM='';
+          for(var tvi=0;tvi<todayVals.length;tvi++){
+            var tv=todayVals[tvi];
+            if(tv.v>maxV){maxV=tv.v;maxM=tv.m}
+            if(tv.v<minV){minV=tv.v;minM=tv.m}
+          }
+          var label=s.type==="rainfall"?"降雨":s.type==="water_level"?"水位":s.type==="hydrology"?"水位":s.type==="soil_moisture"?"含水量":s.type==="evaporation"?"蒸发量":"";
+          var unit=s.type==="soil_moisture"?"%":s.type==="evaporation"?"mm":s.type==="rainfall"?"mm":"m";
+          todayExtremes='<span style="color:#5ea8c8">今日极值</span> <span style="color:#00e0c0">高 '+maxV.toFixed(1)+unit+'</span> <span style="color:#4a8aaa">|</span> <span style="color:#b0d4ef">低 '+minV.toFixed(1)+unit+'</span>';
+        }
+      }
+      // 设备运行时长
+      var uptime='';
+      if(dv.length>0){
+        var onlineDev=dv.find(function(x){return x.status==='online'});
+        if(onlineDev&&onlineDev.last_data_time){
+          var lastT=new Date(onlineDev.last_data_time.replace(' ','T'));
+          var hoursAgo=Math.round((Date.now()-lastT.getTime())/3600000);
+          if(hoursAgo<1)uptime='<span style="color:#00e0c0">设备在线</span>';
+          else uptime='<span style="color:#00e0c0">已运行 '+hoursAgo+'h</span>';
+        }else if(onlineCount>0){
+          uptime='<span style="color:#00e0c0">设备在线</span>';
+        }
+      }
+      // 数据延迟告警
+      var delayWarn='';
+      if(sd&&sd.length>0){
+        var latestRec=sd[0];
+        if(latestRec&&latestRec.recorded_at){
+          var recT=new Date(latestRec.recorded_at.replace(' ','T'));
+          var minsAgo=Math.round((Date.now()-recT.getTime())/60000);
+          if(minsAgo>120)delayWarn='<span style="color:#ff4760">⏰ 数据延迟 '+Math.floor(minsAgo/60)+'h</span>';
+          else if(minsAgo>60)delayWarn='<span style="color:#ffa040">⏰ 延迟 '+minsAgo+'min</span>';
+        }
+      }
+      // 最新数据时间
+      var latestTime=sd&&sd.length?sd[0].recorded_at||'':'';
+      var latestTm=latestTime?latestTime.substring(0,16):'';
+      // 今日到报状态
+      var arrivalStatus='';
+      var todayDate=new Date().toISOString().substring(0,10);
+      var hasTodayData=false;
+      if(sd&&sd.length>0){
+        for(var si2=0;si2<sd.length&&!hasTodayData;si2++){
+          if(sd[si2].recorded_at&&sd[si2].recorded_at.indexOf(todayDate)===0)hasTodayData=true;
+        }
+      }
+      arrivalStatus=hasTodayData?'<span style="color:#00e0c0">今日已到报</span>':'<span style="color:#ffa040">今日未到报</span>';
+      // 最近巡检（优化：使用useEffect风格延迟加载）
+      var inspectHtml='';
+      try{
+        var allInsp=await af('/inspections');
+        if(allInsp&&allInsp.length){
+          var siteInsp=[];
+          for(var isi=0;isi<allInsp.length;isi++){if(allInsp[isi].site_id===s.id)siteInsp.push(allInsp[isi])}
+          siteInsp.sort(function(a,b){return a.created_at<b.created_at?1:-1});
+          if(siteInsp.length>0){
+            var lastInsp=siteInsp[0];
+            var inspDate=lastInsp.created_at?lastInsp.created_at.substring(0,10):'';
+            var inspDone=lastInsp.completed_items||0;
+            var inspTotal=lastInsp.total_items||0;
+            var donePct=inspTotal>0?Math.round(inspDone/inspTotal*100):0;
+            inspectHtml='<span style="color:#5ea8c8">最近巡检</span> <span style="color:#b0d4ef">'+inspDate+'</span><span style="color:'+(donePct>=80?'#00e0c0':'#ffa040')+'">'+donePct+'%</span>';
+          }
+        }
+      }catch(e){/* noop */}
+      // 组装状态栏
+      var statusBar=[];
+      if(uptime)statusBar.push(uptime);
+      if(arrivalStatus)statusBar.push(arrivalStatus);
+      if(delayWarn)statusBar.push(delayWarn);
+      if(latestTm)statusBar.push('<span style="color:#5ea8c8">数据</span> <span style="color:'+(delayWarn?'#ff4760':'#b0d4ef')+'">'+latestTm+'</span>');
+      
+      const chartHtml=sd&&sd.length?renderSiteChart(sd,s.type):'<div style="padding:6px 0;color:#4a8aaa;font-size:11px">暂无实时数据</div>';
+      const alertHtml=sa.length?sa.slice(0,5).map(x=>`<div class="sp-alert" style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid rgba(0,200,180,0.06);cursor:pointer" onclick="this.closest('.leaflet-popup-close-button')&&document.querySelector('.leaflet-popup-close-button')&&document.querySelector('.leaflet-popup-close-button').click();showAlertDetail(${x.id})"><span style="color:${x.level==='red'?'#ff4760':x.level==='orange'?'#ffa040':'#ffd000'};font-size:10px;padding:0 4px;border-radius:2px;background:rgba(255,255,255,0.05)">${x.level==='red'?'红':x.level==='orange'?'橙':'黄'}</span><span style="flex:1;font-size:11px;color:#b0d4ef">${x.message}</span><span style="font-size:10px;color:#5ea8c8">${(x.created_at||'').substring(11,16)}</span></div>`).join(''):'<div style="color:#4a8aaa;font-size:11px;padding:3px 0">暂无告警</div>';
+      m.bindPopup(`<div class="site-popup"><h4 style="margin-bottom:6px;font-size:15px">${s.name} <span style="font-size:11px;color:#5ea8c8">${s.code}</span></h4><div class="row" style="margin-bottom:2px"><span class="rl">类型</span><span class="rv">${TM[s.type]||s.type}</span><span style="flex:1"></span><span class="rl" style="margin-left:12px">区县</span><span class="rv">${s.district||'-'}</span></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 4px;font-size:10px">${statusBar.join('<span style="color:#4a8aaa">|</span>')}</div>${todayExtremes?('<div style="font-size:10px;margin-bottom:4px">'+todayExtremes+'</div>'):''}${inspectHtml?('<div style="font-size:10px;margin-bottom:4px">'+inspectHtml+'</div>'):''}<div style="margin:8px 0 6px;padding:6px 0;border-top:1px solid rgba(0,200,180,0.08);border-bottom:1px solid rgba(0,200,180,0.08)">${chartHtml}</div>${alertHtml?('<div style="margin:4px 0 2px;font-size:11px;color:#ffa040;padding-bottom:3px">告警</div>'+alertHtml):''}</div>`,{maxWidth:380,className:'site-popup-wrap'}).openPopup()
+    });
     return m;
   });
 }
+
+// ========== 站点弹窗图表渲染（带坐标轴） ==========
+const CHART_CFG={
+  rainfall:{label:'小时雨量',unit:'mm',color:'#2ea0ff',type:'bar'},
+  water_level:{label:'水位',unit:'m',color:'#00e0c0',type:'line'},
+  hydrology:{label:'水位',unit:'m',color:'#00e0c0',type:'line'},
+  soil_moisture:{label:'土壤含水量',unit:'%',color:'#ffa040',type:'line'},
+  evaporation:{label:'蒸发量',unit:'mm',color:'#a855f7',type:'line'}
+};
+function renderSiteChart(data,type){
+  var cfg=CHART_CFG[type]||CHART_CFG.rainfall;
+  var maxPts=48;
+  var pts=data.slice(-maxPts);
+  var values=[],labels=[],fullRows=[];
+  // 气温指标映射（墒情站/蒸发站共用）
+  var isTemp=function(m){return m==="temperature"};
+  // 按小时聚合（所有类型统一处理）
+  var hourly={};
+  var hourlyCount={};
+  for(var pi=0;pi<pts.length;pi++){
+    var d=pts[pi],v=null,m;
+    if(type==="rainfall"&&d.metric==="precipitation"){v=parseFloat(d.value)||0;m="rain"}
+    else if(type==="water_level"&&d.metric==="water_level"){v=parseFloat(d.value)||0;m="wl"}
+    else if(type==="hydrology"&&d.metric==="water_level"){v=parseFloat(d.value)||0;m="wl"}
+    else if(type==="soil_moisture"&&d.metric==="soil_moisture"){v=parseFloat(d.value)||0;m="sm"}
+    else if(type==="soil_moisture"&&isTemp(d.metric)){v=parseFloat(d.value)||0;m="temp"}
+    else if(type==="evaporation"&&d.metric==="evaporation"){v=parseFloat(d.value)||0;m="evap"}
+    else if(type==="evaporation"&&isTemp(d.metric)){v=parseFloat(d.value)||0;m="temp"}
+    if(v===null)continue;
+    var tm=d.recorded_at||"",hk=tm?tm.substring(11,13):"";
+    var key=hk+"_"+m; // 每个指标每小时间独立
+    if(!hourly[key]){hourly[key]=0;hourlyCount[key]=0}
+    hourly[key]+=v;
+    hourlyCount[key]++;
+  }
+  // 按小时输出
+  var hourKeys=Object.keys(hourly).filter(function(k){return k.indexOf("_wl")>0||k.indexOf("_rain")>0||k.indexOf("_sm")>0||k.indexOf("_evap")>0||k.indexOf("_temp")>0});
+  // 先收集所有唯一小时
+  var uniqueHrs={};
+  for(var pi=0;pi<pts.length;pi++){
+    var tm2=pts[pi].recorded_at||"",hk2=tm2?tm2.substring(11,13):"";
+    uniqueHrs[hk2]=true;
+  }
+  var sortedHrs=Object.keys(uniqueHrs).sort();
+  for(var hi2=0;hi2<sortedHrs.length;hi2++){
+    var hk3=sortedHrs[hi2];
+    // 主指标
+    var mainKey,mainLabel,mainUnit;
+    if(type==="rainfall"){mainKey=hk3+"_rain";mainLabel=hk3+":00"}
+    else if(type==="water_level"){mainKey=hk3+"_wl";mainLabel=hk3+":00"}
+    else if(type==="hydrology"){mainKey=hk3+"_wl";mainLabel=hk3+":00"}
+    else if(type==="soil_moisture"){mainKey=hk3+"_sm";mainLabel=hk3+":00"}
+    else if(type==="evaporation"){mainKey=hk3+"_evap";mainLabel=hk3+":00"}
+    if(mainKey&&hourly[mainKey]){
+      var avg=type==="rainfall"?hourly[mainKey]:hourly[mainKey]/hourlyCount[mainKey];
+      var val=parseFloat(avg.toFixed(1));
+      values.push(val);
+      labels.push(mainLabel);
+      var displayLabel=mainLabel;
+      // 气温附在备注里
+      var tempKey=hk3+"_temp";
+      if(hourly[tempKey]){
+        var tempVal=parseFloat((hourly[tempKey]/hourlyCount[tempKey]).toFixed(1));
+        fullRows.push({tm:displayLabel,val:val,temp:tempVal});
+      }else{
+        fullRows.push({tm:displayLabel,val:val});
+      }
+    }else if(mainKey){
+      // 该小时无数据，填0
+      values.push(0);
+      labels.push(mainLabel);
+    }
+  }
+  var flowVals=null;
+  if(type==="hydrology"){flowVals=[];for(var fi=0;fi<pts.length;fi++){var fd=pts[fi];if(fd.metric==="flow")flowVals.push(parseFloat(fd.value)||0)}}
+  if(!values.length)return '<div style="color:#4a8aaa;font-size:11px;padding:6px 0">暂无数据</div>';
+  var sw=350,sh=90,ml=32,mr=8,mt=6,mb=18,cw=sw-ml-mr,ch=sh-mt-mb;
+  var maxV=0;for(var vi=0;vi<values.length;vi++)if(values[vi]>maxV)maxV=values[vi];
+  maxV=Math.ceil(maxV*1.2)||1;
+  var warnLevel=15;
+  var yTicks=[0,Math.round(maxV/2*10)/10,maxV];
+  if(type==="water_level"||type==="hydrology"){var warn=maxV>warnLevel?warnLevel:maxV*0.6;yTicks=[0,Math.round(warn*10)/10,Math.round(maxV*10)/10]}
+  var yAxis="";
+  for(var yti=0;yti<yTicks.length;yti++){var yv=yTicks[yti],yy=sh-mb-(yv/maxV*ch);yAxis+='<text x="'+(ml-4)+'" y="'+(yy+3)+'" fill="#4a8aaa" font-size="7" text-anchor="end">'+yv.toFixed(1)+'</text>';if(yv>0)yAxis+='<line x1="'+ml+'" y1="'+yy+'" x2="'+(sw-mr)+'" y2="'+yy+'" stroke="rgba(0,200,180,0.06)" stroke-width="0.5"/>'}
+  var xAxis="";
+  if(labels.length>1){var xStep=Math.max(1,Math.floor(labels.length/5));for(var xi=0;xi<labels.length;xi+=xStep){var lx=ml+(xi/(labels.length-1))*cw;xAxis+='<text x="'+lx+'" y="'+(sh-4)+'" fill="#4a8aaa" font-size="6" text-anchor="middle">'+labels[xi]+'</text>'}}else if(labels.length===1){xAxis+='<text x="'+(ml+cw/2)+'" y="'+(sh-4)+'" fill="#4a8aaa" font-size="6" text-anchor="middle">'+labels[0]+'</text>'}
+  var dataHtml="",barW=type==="rainfall"?Math.max(2,cw/values.length*0.6):Math.max(6,cw/values.length*0.7);
+  if(cfg.type==="bar"){for(var bi=0;bi<values.length;bi++){var bh=(values[bi]/maxV)*ch,bx=values.length>1?ml+(bi/(values.length-1))*cw-barW/2:ml+(cw-barW)/2,by=sh-mb-bh;dataHtml+='<rect x="'+bx.toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+bh.toFixed(1)+'" fill="'+cfg.color+'" rx="0.5" opacity="0.85"/>'}}else{
+    // 折线图（水位/墒情/蒸发）
+    var linePts=[];
+    for(var li=0;li<values.length;li++){
+      var lx=values.length>1?ml+(li/(values.length-1))*cw:ml+cw/2;
+      var ly=sh-mb-(values[li]/maxV*ch);
+      linePts.push(lx.toFixed(1)+','+ly.toFixed(1));
+      dataHtml+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+cfg.color+'" opacity="0.9"/>';
+      dataHtml+='<text x="'+lx.toFixed(1)+'" y="'+(ly-4)+'" fill="'+cfg.color+'" font-size="7" text-anchor="middle">'+values[li].toFixed(1)+'</text>';
+    }
+    if(linePts.length>1)dataHtml='<polyline points="'+linePts.join(' ')+'" fill="none" stroke="'+cfg.color+'" stroke-width="1.5" opacity="0.7"/>'+dataHtml;
+  }
+  var warnLine="";
+  if(type==="water_level"||type==="hydrology"){var wy=sh-mb-(warnLevel/maxV*ch);if(wy>mt&&wy<sh-mb){warnLine='<line x1="'+ml+'" y1="'+wy+'" x2="'+(sw-mr)+'" y2="'+wy+'" stroke="#ff4760" stroke-width="0.8" stroke-dasharray="4,3" opacity="0.6"/><text x="'+(sw-mr-2)+'" y="'+(wy-2)+'" fill="#ff4760" font-size="7" text-anchor="end" opacity="0.7">警我'+warnLevel+'m</text>'}}
+  var flowHtml="";
+  if(type==="hydrology"&&flowVals&&flowVals.length>1){var fMax=0;for(var fi=0;fi<flowVals.length;fi++)if(flowVals[fi]>fMax)fMax=flowVals[fi];fMax=Math.ceil(fMax*1.1)||100;var fPts=[];for(var fi2=0;fi2<flowVals.length;fi2++){var fx=ml+(fi2/(flowVals.length-1))*cw,fy=sh-mb-(flowVals[fi2]/fMax*ch);fPts.push(fx.toFixed(1)+','+fy.toFixed(1));flowHtml+='<circle cx="'+fx.toFixed(1)+'" cy="'+fy.toFixed(1)+'" r="1.5" fill="#ffa040" opacity="0.6"/>'};if(fPts.length>1)flowHtml='<polyline points="'+fPts.join(' ')+'" fill="none" stroke="#ffa040" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>'+flowHtml}
+  var legend='<div style="display:flex;gap:10px;margin-top:4px;font-size:9px;color:#5ea8c8"><span><span style="display:inline-block;width:8px;height:2px;background:'+cfg.color+';margin-right:3px;vertical-align:middle"></span>'+cfg.label+'('+cfg.unit+')</span>';
+  if(type==="hydrology")legend+='<span><span style="display:inline-block;width:8px;height:2px;background:#ffa040;margin-right:3px;vertical-align:middle"></span>流量(m&#179;/s)</span>';
+  if(type==="water_level"||type==="hydrology")legend+='<span><span style="display:inline-block;width:8px;height:2px;background:#ff4760;margin-right:3px;vertical-align:middle"></span>警我</span>';
+  legend+='</div>';
+  var svg='<svg width="'+sw+'" height="'+sh+'" viewBox="0 0 '+sw+' '+sh+'" style="display:block">'+warnLine+dataHtml+flowHtml+yAxis+xAxis+'</svg>';
+  var tableHtml="";
+  if((type==="rainfall"||type==="soil_moisture"||type==="evaporation")&&fullRows.length>0){
+    var rows="";
+    var sliceLen=Math.min(fullRows.length,8);
+    var col2=type==="rainfall"?"降水量(mm)":type==="soil_moisture"?"含水量/温度":"蒸发量/温度";
+    for(var ti=fullRows.length-1;ti>=fullRows.length-sliceLen;ti--){
+      var r=fullRows[ti];
+      var valStr=r.val.toFixed(1);
+      var unit=type==="rainfall"?"mm":type==="evaporation"?"mm":"%";
+      var tempStr=r.temp!==undefined?" "+r.temp.toFixed(1)+"℃":"";
+      rows+='<tr><td style="padding:2px 8px;color:#5ea8c8;font-size:10px">'+r.tm+'</td><td style="padding:2px 8px;color:#b0d4ef;font-size:11px;text-align:right;font-family:monospace">'+valStr+unit+tempStr+'</td></tr>'
+    }
+    tableHtml='<div style="margin-top:4px;border-top:1px solid rgba(0,200,180,0.08)"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:2px 8px;color:#4a8aaa;font-size:10px;text-align:left;border-bottom:1px solid rgba(0,200,180,0.1)">时间</th><th style="padding:2px 8px;color:#4a8aaa;font-size:10px;text-align:right;border-bottom:1px solid rgba(0,200,180,0.1)">'+col2+'</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+  }
+  return svg+legend+tableHtml;
+}
+
 function fitByType(type){
   document.querySelectorAll('.map-tool').forEach(b=>b.classList.toggle('active',(type||'')===(b.dataset.type||'')));
   if(markerCluster){markerCluster.clearLayers();_loadAllMarkers(type).then(ms=>{ms.forEach(m=>markerCluster.addLayer(m));if(ms.length)map.fitBounds(markerCluster.getBounds().pad(0.15))})}
 }
-
-// ========== 驾驶舱数据 ==========
 
 // ========== 驾驶舱数据 ==========
 async function _loadRainfall(){
@@ -481,7 +698,7 @@ async function cockpitLoad(){
   if(!s)console.warn('[Cockpit] /data/realtime返回null');
   if(!ds)console.warn('[Cockpit] /devices/status返回null');
   const devPills=ds&&ds.summary?'<div class=\"stat-pills\" style=\"margin-bottom:4px\"><div class=\"pill\" onclick=\"switchNav(\'sites\')\" style=\"cursor:pointer\"><div class=\"pn\" style=\"color:#00e0c0\">'+(ds.summary.online||0)+'</div><div class=\"pl\">在线</div></div><div class=\"pill\" onclick=\"switchNav(\'sites\')\" style=\"cursor:pointer\"><div class=\"pn\" style=\"color:#ffa040\">'+(ds.summary.offline||0)+'</div><div class=\"pl\">离线</div></div><div class=\"pill\" onclick=\"switchNav(\'sites\')\" style=\"cursor:pointer\"><div class=\"pn\" style=\"color:#5ea8c8\">'+(ds.summary.total||0)+'</div><div class=\"pl\">设备总数</div></div></div>':'';
-  if(s){const total=s.length;const abnormal=s.filter(function(x){return x.status==='offline'||(x.latest_value>1000&&x.latest_metric!=='')}).length;const sorted=[...s].sort(function(a,b){return(b.status==='offline'?1:0)-(a.status==='offline'?1:0)||((b.latest_value>1000&&b.latest_metric)?1:0)-((a.latest_value>1000&&a.latest_metric)?1:0)}).slice(0,15);document.getElementById('site-stat-badge').textContent=total+'站 '+(abnormal?abnormal+'异常':'')+(abnormal?' ⚠':'');document.getElementById('site-feed').innerHTML=devPills+sorted.map(function(x){const isAb=x.status==='offline'||(x.latest_value>1000&&x.latest_metric);const tm=x.recorded_at||x.latest_time||'';const tmStr=tm?tm.substring(11,19):'';const lv=x.latest_value;const valStr=lv!==null&&lv!==undefined&&lv!==''?lv+(x.latest_unit||''):'--';return '<div class=\"ditem'+(isAb?' abnormal':'')+'\" style=\"cursor:pointer'+(isAb?';background:rgba(255,71,96,0.04);border-left:2px solid #ff4760':'')+'\" onclick=\"switchNav(\'sites\')\"><span class=\"did '+(isAb?'red':'green')+'\"></span><span class=\"di2\"><div class=\"dn\">'+(x.name||'')+(isAb?' <span style=\"color:#ff4760;font-size:10px\">⚠</span>':'')+'</div><div class=\"ds\">'+(TM[x.type]||x.type||'')+(tmStr?' · '+tmStr:'')+'</div></span><span class=\"dv\">'+valStr+'</span></div>'}).join('')}const a=await af('/alerts?status=pending&limit=50'),p=a?a.sort((a,b)=>{const o={red:3,orange:2,yellow:1};return (o[b.level]||0)-(o[a.level]||0)}):[];
+  if(s){const total=s.length;const abnormal=s.filter(function(x){return x.status==='offline'||(x.latest_value>1000&&x.latest_metric!=='')}).length;const sorted=[...s].sort(function(a,b){return(b.status==='offline'?1:0)-(a.status==='offline'?1:0)||((b.latest_value>1000&&b.latest_metric)?1:0)-((a.latest_value>1000&&a.latest_metric)?1:0)}).slice(0,15);document.getElementById('site-stat-badge').textContent=total+'站 '+(abnormal?abnormal+'异常':'')+(abnormal?' ⚠':'');document.getElementById('site-feed').innerHTML=devPills+sorted.map(function(x){const isAb=x.status==='offline'||(x.latest_value>1000&&x.latest_metric);const tm=x.recorded_at||x.latest_time||'';const tmStr=tm?tm.substring(11,19):'';const lv=x.latest_value;const valStr=lv!==null&&lv!==undefined&&lv!==''?lv+(x.latest_unit||''):'--';return '<div class=\"ditem'+(isAb?' abnormal':'')+'\" style=\"cursor:pointer'+(isAb?';background:rgba(255,71,96,0.04);border-left:2px solid #ff4760':'')+'\" onclick=\"gotoSite('+x.id+')\"><span class=\"did '+(isAb?'red':'green')+'\"></span><span class=\"di2\"><div class=\"dn\">'+(x.name||'')+(isAb?' <span style=\"color:#ff4760;font-size:10px\">⚠</span>':'')+'</div><div class=\"ds\">'+(TM[x.type]||x.type||'')+(tmStr?' · '+tmStr:'')+'</div></span><span class=\"dv\">'+valStr+'</span></div>'}).join('')}const a=await af('/alerts?status=pending&limit=50'),p=a?a.sort((a,b)=>{const o={red:3,orange:2,yellow:1};return (o[b.level]||0)-(o[a.level]||0)}):[];
   const allAlerts=a||[];
   // 更新呼吸灯
   _updateBreathe(p);

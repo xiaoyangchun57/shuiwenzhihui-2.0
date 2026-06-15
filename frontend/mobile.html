@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>水文运维 - 移动端</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f0f4f8;color:#1a2332;overflow-x:hidden}
+.app{width:100%;max-width:420px;margin:0 auto;min-height:100vh;background:#f0f4f8}
+
+/* === Top Bar === */
+.top-bar{display:flex;align-items:flex-start;padding:14px 16px 12px;gap:10px;background:linear-gradient(135deg,#1a6dd4 0%,#2580e8 100%);color:#fff}
+.tb-left{display:flex;align-items:center;gap:10px;min-width:0}
+.tb-day{font-size:38px;font-weight:700;color:#fff;line-height:1;min-width:44px}
+.tb-date-info{display:flex;flex-direction:column;gap:1px}
+.tb-date-str{font-size:11px;color:rgba(255,255,255,0.8)}
+.tb-weekday{font-size:12px;color:rgba(255,255,255,0.8)}
+.tb-weather{font-size:11px;color:rgba(255,255,255,0.9);line-height:1.3;margin-top:1px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.tb-search{background:rgba(255,255,255,0.2);border-radius:18px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;user-select:none}
+.tb-search:active{background:rgba(255,255,255,0.3)}
+.tb-avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:600;flex-shrink:0}
+
+/* === Task Counter === */
+.task-counter{background:#fff;margin:-8px 12px 0;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);position:relative;z-index:2}
+.tc-row{display:flex;align-items:baseline;gap:8px}
+.tc-big{font-size:40px;font-weight:700;color:#1a6dd4;line-height:1}
+.tc-label{font-size:15px;color:#666}
+.tc-breakdown{display:flex;gap:12px;margin-top:10px;font-size:11px;color:#999}
+.tc-breakdown span{padding:3px 8px;background:#f0f4f8;border-radius:10px;white-space:nowrap}
+.tc-breakdown .tc-alert{color:#e94560}
+.tc-breakdown .tc-wo{color:#1a6dd4}
+.tc-breakdown .tc-insp{color:#2ea080}
+
+/* === Alert Strip === */
+.alert-strip{display:none;align-items:center;gap:8px;margin:10px 12px 0;padding:10px 14px;background:#fff3f3;border-radius:8px;font-size:12px;color:#e94560;cursor:pointer}
+.alert-strip.show{display:flex}
+.alert-strip .as-icon{font-size:16px}
+.alert-strip .as-count{font-weight:600}
+.alert-strip .as-arrow{margin-left:auto;color:#e94560;opacity:0.5}
+
+/* === Task Feed === */
+.task-feed{margin:10px 12px 0;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+.tf-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px}
+.tf-title{font-size:13px;font-weight:600;color:#1a2332}
+.tf-see-all{font-size:11px;color:#1a6dd4;cursor:pointer;padding:4px}
+.tf-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer}
+.tf-item:last-child{border-bottom:none}
+.tf-item:active{background:#f7f9fc}
+.tf-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tf-dot.w-red{background:#e94560}
+.tf-dot.w-orange{background:#f5a623}
+.tf-dot.w-blue{background:#1a6dd4}
+.tf-dot.w-green{background:#2ea080}
+.tf-dot.w-gray{background:#ccc}
+.tf-info{flex:1;min-width:0}
+.tf-info .tf-title-line{font-size:13px;color:#1a2332;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tf-info .tf-sub{font-size:11px;color:#999;margin-top:2px}
+.tf-badge{font-size:10px;padding:2px 8px;border-radius:10px;flex-shrink:0;font-weight:500;white-space:nowrap}
+.bg-pending{background:rgba(153,153,153,0.15);color:#999}
+.bg-active{background:rgba(46,160,128,0.1);color:#2ea080}
+.bg-urgent{background:rgba(233,69,96,0.1);color:#e94560}
+.bg-done{background:rgba(26,109,212,0.1);color:#1a6dd4}
+.tf-empty{text-align:center;padding:24px;color:#ccc;font-size:12px}
+
+/* === Quick Actions === */
+.quick-actions{display:flex;justify-content:space-around;padding:12px;gap:4px}
+.qa-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px;border-radius:10px;cursor:pointer;min-width:0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+.qa-item:active{background:#f7f9fc}
+.qa-item .icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.qa-item .name{font-size:11px;color:#444;white-space:nowrap;font-weight:500}
+.qa-item:nth-child(1) .icon{background:rgba(26,109,212,0.1);color:#1a6dd4}
+.qa-item:nth-child(2) .icon{background:rgba(46,160,128,0.1);color:#2ea080}
+.qa-item:nth-child(3) .icon{background:rgba(245,166,35,0.1);color:#f5a623}
+.qa-item:nth-child(4) .icon{background:rgba(139,92,246,0.1);color:#8b5cf6}
+
+/* === Inline Views === */
+.inline-view{display:none;position:fixed;top:0;left:0;right:0;max-width:420px;margin:0 auto;bottom:0;background:#f0f4f8;z-index:200;overflow-y:auto}
+.inline-view.open{display:block}
+.iv-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#1a6dd4 0%,#2580e8 100%);color:#fff;position:sticky;top:0;z-index:10}
+.iv-header .back{font-size:20px;cursor:pointer;padding:4px 8px 4px 0;user-select:none}
+.iv-header .iv-title{font-size:16px;font-weight:600}
+.iv-body{padding:12px 14px}
+.iv-card{background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+
+/* === Work Order Detail === */
+.wo-detail .wo-no{font-size:11px;color:#1a6dd4;font-family:monospace;margin-bottom:4px}
+.wo-detail .wo-title{font-size:16px;font-weight:600;color:#1a2332;margin-bottom:8px}
+.wo-detail .wo-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.wo-detail .wo-meta .tag{font-size:10px;padding:3px 8px;border-radius:4px;background:#f0f4f8;color:#666}
+.wo-detail .wo-meta .tag.urgent{background:rgba(233,69,96,0.1);color:#e94560}
+.wo-detail .wo-desc{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
+.wo-detail .wo-actions{display:flex;flex-wrap:wrap;gap:8px}
+.wo-detail .wo-actions button{flex:1;min-width:80px;padding:10px 12px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.wo-detail .wo-actions button:active{opacity:0.8}
+.btn-accept{background:#1a6dd4;color:#fff}
+.btn-process{background:#2ea080;color:#fff}
+.btn-close{background:#f5a623;color:#fff}
+.btn-gray{background:#eee;color:#999}
+.btn-danger{background:#e94560;color:#fff}
+.btn-outline{background:#fff;color:#1a6dd4;border:1px solid #1a6dd4}
+
+/* === Inspection Checklist === */
+.insp-header{margin-bottom:10px}
+.insp-header .insp-name{font-size:15px;font-weight:600;color:#1a2332}
+.insp-header .insp-meta{font-size:11px;color:#999;margin-top:4px}
+.insp-progress{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.insp-bar{flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden}
+.insp-bar-fill{height:100%;background:#2ea080;border-radius:3px;transition:width .3s}
+.insp-progress-text{font-size:11px;color:#666;white-space:nowrap}
+.ck-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f0f0f0}
+.ck-item .ck-no{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0}
+.ck-item .ck-no.todo{background:#ddd}
+.ck-item .ck-no.normal{background:#2ea080}
+.ck-item .ck-no.abnormal{background:#e94560}
+.ck-info{flex:1;min-width:0}
+.ck-info .ck-name{font-size:13px;color:#1a2332}
+.ck-info .ck-remark{font-size:10px;color:#999;margin-top:2px}
+.ck-btns{display:flex;gap:6px;flex-shrink:0}
+.ck-btns button{padding:6px 14px;border:none;border-radius:16px;font-size:12px;cursor:pointer;font-weight:500}
+.ck-btns button:active{opacity:0.8}
+.ck-btns .btn-ok{background:rgba(46,160,128,0.1);color:#2ea080}
+.ck-btns .btn-ng{background:rgba(233,69,96,0.1);color:#e94560}
+.ck-btns .btn-undo{background:#eee;color:#999}
+.ck-done-label{font-size:11px;color:#2ea080;font-weight:500;flex-shrink:0}
+
+/* === Search Overlay === */
+.search-overlay{display:none;position:fixed;top:0;left:0;right:0;max-width:420px;margin:0 auto;bottom:0;background:#f0f4f8;z-index:300}
+.search-overlay.open{display:flex;flex-direction:column}
+.so-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:1px solid #eee}
+.so-back{font-size:18px;cursor:pointer;color:#999;padding:4px;user-select:none}
+.so-input{flex:1;padding:8px 12px;border:none;background:#f5f7fa;border-radius:8px;font-size:14px;color:#1a2332;outline:none}
+.so-input::placeholder{color:#bbb}
+.so-body{flex:1;overflow-y:auto;padding:8px 14px}
+.so-result{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer}
+.so-result:active{background:rgba(26,109,212,0.03)}
+.so-result .sr-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.so-result .sr-dot.online{background:#2ea080}
+.so-result .sr-dot.offline{background:#f5a623}
+.so-result .sr-info{flex:1}
+.so-result .sr-info .sr-name{font-size:13px;color:#1a2332}
+.so-result .sr-info .sr-meta{font-size:11px;color:#999;margin-top:1px}
+.so-empty{text-align:center;padding:40px 0;color:#ccc;font-size:13px}
+
+/* === Site Detail Overlay === */
+.site-detail-overlay{display:none;position:fixed;top:0;left:0;right:0;max-width:420px;margin:0 auto;bottom:0;background:#f0f4f8;z-index:310;overflow-y:auto}
+.site-detail-overlay.open{display:block}
+.sd-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#1a6dd4 0%,#2580e8 100%);color:#fff}
+.sd-header .back{font-size:20px;cursor:pointer;padding:4px 8px 4px 0;user-select:none}
+.sd-header .sd-name{font-size:16px;font-weight:600}
+.sd-body{padding:12px 14px}
+
+/* === Parts Apply === */
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:12px;color:#666;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;color:#1a2332;background:#fff}
+.form-group textarea{height:70px;resize:none}
+.btn-primary{width:100%;padding:12px;background:#1a6dd4;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.btn-primary:active{background:#1558b0}
+
+/* === Manuals === */
+.manual-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer}
+.manual-item .m-icon{width:36px;height:36px;border-radius:8px;background:rgba(26,109,212,0.08);display:flex;align-items:center;justify-content:center;font-size:16px;color:#1a6dd4;flex-shrink:0}
+.manual-item .m-info{flex:1}
+.manual-item .m-info .m-title{font-size:13px;color:#1a2332}
+.manual-item .m-info .m-desc{font-size:11px;color:#999;margin-top:2px}
+.manual-item .m-arrow{color:#ccc;font-size:14px}
+
+/* === Toast === */
+#toast{display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;max-width:380px;white-space:nowrap}
+
+.loading{display:flex;align-items:center;justify-content:center;padding:30px;color:#999;font-size:13px}
+.empty{text-align:center;padding:40px 0;color:#bbb;font-size:13px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="tb-left">
+      <span class="tb-day" id="m-day">-</span>
+      <div class="tb-date-info">
+        <span class="tb-date-str" id="m-date">-</span>
+        <span class="tb-weekday" id="m-weekday">-</span>
+        <div class="tb-weather" id="m-weather">加载中...</div>
+      </div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-search" onclick="openSearch()">&#128269; 搜索站点</div>
+      <div class="tb-avatar">R</div>
+    </div>
+  </div>
+
+  <!-- Task Counter -->
+  <div class="task-counter">
+    <div class="tc-row">
+      <span class="tc-big" id="m-task-total">-</span>
+      <span class="tc-label">今日待办</span>
+    </div>
+    <div class="tc-breakdown">
+      <span class="tc-alert" id="m-tc-alert">告警 -</span>
+      <span class="tc-wo" id="m-tc-wo">工单 -</span>
+      <span class="tc-insp" id="m-tc-insp">巡检 -</span>
+    </div>
+  </div>
+
+  <!-- Alert Strip -->
+  <div class="alert-strip" id="alert-strip" onclick="openView('orders')">
+    <span class="as-icon">&#9888;&#65039;</span>
+    <span class="as-count" id="as-count">0条待处理告警</span>
+    <span class="as-arrow">&#8250;</span>
+  </div>
+
+  <!-- Task Feed -->
+  <div class="task-feed">
+    <div class="tf-header"><span class="tf-title">待处理任务</span><span class="tf-see-all" id="tf-see-all" style="display:none" onclick="openView('orders')">查看全部 &#8250;</span></div>
+    <div id="task-feed-list"><div class="loading">加载中...</div></div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="quick-actions">
+    <div class="qa-item" onclick="openView('orders')"><div class="icon">&#128203;</div><span class="name">工单处理</span></div>
+    <div class="qa-item" onclick="openView('inspection')"><div class="icon">&#128269;</div><span class="name">日常巡检</span></div>
+    <div class="qa-item" onclick="openView('parts')"><div class="icon">&#128230;</div><span class="name">备件申请</span></div>
+    <div class="qa-item" onclick="openView('manual')"><div class="icon">&#128214;</div><span class="name">运维规范</span></div>
+  </div>
+</div>
+
+<!-- ===== Inline Views ===== -->
+
+<!-- Search Overlay -->
+<div class="search-overlay" id="search-overlay">
+  <div class="so-header">
+    <span class="so-back" onclick="closeSearch()">&#8592;</span>
+    <input class="so-input" id="so-input" placeholder="搜索站点名称..." autocomplete="off" oninput="doSearch()">
+  </div>
+  <div class="so-body" id="so-body">
+    <div class="so-empty">输入关键词搜索站点</div>
+  </div>
+</div>
+
+<!-- Site Detail Overlay -->
+<div class="site-detail-overlay" id="site-detail-overlay">
+  <div class="sd-header">
+    <span class="back" onclick="closeSiteDetail()">&#8592;</span>
+    <span class="sd-name" id="sd-name">站点详情</span>
+  </div>
+  <div class="sd-body" id="sd-body"><div class="loading">加载中...</div></div>
+</div>
+
+<!-- 工单列表 -->
+<div class="inline-view" id="view-orders">
+  <div class="iv-header"><span class="back" onclick="closeView('orders')">&#8592;</span><span class="iv-title">工单处理</span></div>
+  <div class="iv-body" id="iv-orders-body"><div class="loading">加载中...</div></div>
+</div>
+
+<!-- 工单详情 -->
+<div class="inline-view" id="view-wo-detail">
+  <div class="iv-header"><span class="back" onclick="closeWoDetail()">&#8592;</span><span class="iv-title" id="wo-detail-title">工单详情</span></div>
+  <div class="iv-body" id="iv-wo-detail-body"><div class="loading">加载中...</div></div>
+</div>
+
+<!-- 巡检列表 -->
+<div class="inline-view" id="view-inspection">
+  <div class="iv-header"><span class="back" onclick="closeView('inspection')">&#8592;</span><span class="iv-title">日常巡检</span></div>
+  <div class="iv-body" id="iv-inspection-body"><div class="loading">加载中...</div></div>
+</div>
+
+<!-- 巡检清单 -->
+<div class="inline-view" id="view-insp-checklist">
+  <div class="iv-header"><span class="back" onclick="closeInspChecklist()">&#8592;</span><span class="iv-title" id="insp-title">巡检清单</span></div>
+  <div class="iv-body" id="iv-insp-checklist-body"><div class="loading">加载中...</div></div>
+</div>
+
+<!-- 备件申请 -->
+<div class="inline-view" id="view-parts">
+  <div class="iv-header"><span class="back" onclick="closeView('parts')">&#8592;</span><span class="iv-title">备件申请</span></div>
+  <div class="iv-body">
+    <div class="iv-card">
+      <div class="form-group"><label>站点名称</label><select id="parts-site"><option>选择站点</option></select></div>
+      <div class="form-group"><label>备件名称</label><input id="parts-name" placeholder="如：雨量传感器、水位计..."></div>
+      <div class="form-group"><label>申请数量</label><input id="parts-qty" type="number" placeholder="1" value="1"></div>
+      <div class="form-group"><label>申请原因</label><textarea id="parts-reason" placeholder="请简述申请原因..."></textarea></div>
+      <button class="btn-primary" onclick="submitParts()">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- 运维规范 -->
+<div class="inline-view" id="view-manual">
+  <div class="iv-header"><span class="back" onclick="closeView('manual')">&#8592;</span><span class="iv-title">运维规范</span></div>
+  <div class="iv-body" id="iv-manual-body"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+var API='/api';
+var TM={rainfall:'雨量站',water_level:'水位站',hydrology:'水文站',soil_moisture:'墒情站',evaporation:'蒸发站'};
+async function af(path){try{var r=await fetch(API+path,{signal:AbortSignal.timeout(8000)});return await r.json()}catch(e){return null}}
+
+function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(function(){t.style.display='none'},2000)}
+
+// ===== Date & Weather =====
+function updateDateTime(){
+  var d=new Date(),days=['日','一','二','三','四','五','六'];
+  document.getElementById('m-day').textContent=d.getDate();
+  document.getElementById('m-date').textContent=d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0');
+  document.getElementById('m-weekday').textContent='周'+days[d.getDay()];
+}
+async function updateWeather(){
+  var w=await af('/weather');
+  if(w&&w.current){var t=w.current.temperature||'--';var d=w.current.weather_desc||w.current.weather_type||'';document.getElementById('m-weather').innerHTML=d+' '+t+'°C'}
+}
+
+// ===== Task Counter =====
+async function updateTaskCounter(){
+  var alertStat,woStat,inspStat;
+  try{
+    var r1=await af('/alerts/statistics?status=pending');
+    var r2=await af('/workorders/statistics');
+    var r3=await af('/inspections/statistics');
+    alertStat=r1;woStat=r2;inspStat=r3;
+  }catch(e){}
+
+  var aCount=alertStat&&alertStat.by_status?alertStat.by_status.pending||0:0;
+  var woActive=woStat?((woStat.by_status.pending||0)+(woStat.by_status.accepted||0)+(woStat.by_status.generated||0)+(woStat.by_status.dispatched||0)+(woStat.by_status.in_progress||0)+(woStat.by_status.reviewing||0)+(woStat.by_status.acceptance||0)):0;
+  var inspPending=inspStat?((inspStat.total_plans||0)-(inspStat.completed_plans||0)):0;
+  var total=aCount+woActive+inspPending;
+
+  document.getElementById('m-task-total').textContent=total||'0';
+  document.getElementById('m-tc-alert').textContent='告警 '+aCount;
+  document.getElementById('m-tc-wo').textContent='工单 '+woActive;
+  document.getElementById('m-tc-insp').textContent='巡检 '+inspPending;
+
+  // Alert strip
+  var as=document.getElementById('alert-strip');
+  if(aCount>0){as.classList.add('show');document.getElementById('as-count').textContent=aCount+'条待处理告警'}
+  else as.classList.remove('show');
+}
+
+// ===== Task Feed =====
+async function loadTaskFeed(){
+  var wo, alerts, insp;
+  try{
+    var r1=await af('/workorders?limit=20');
+    var r2=await af('/alerts?status=pending&limit=10');
+    var r3=await af('/inspections');
+    wo=r1;alerts=r2;insp=r3;
+  }catch(e){}
+
+  var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
+  var html='',itemCount=0;
+
+  // Alerts
+  if(alerts&&alerts.length){
+    var topA=alerts.sort(function(a,b){var o={red:3,orange:2,yellow:1};return(o[b.level]||0)-(o[a.level]||0)}).slice(0,3);
+    for(var i=0;i<topA.length;i++){var a=topA[i];html+='<div class="tf-item" onclick="openView(\'orders\')"><span class="tf-dot w-red"></span><div class="tf-info"><div class="tf-title-line">'+a.site_name+'</div><div class="tf-sub">'+a.message+'</div></div><span class="tf-badge bg-urgent">告警</span></div>';itemCount++}
+  }
+
+  // Work orders
+  if(wo&&wo.length){
+    var active=wo.filter(function(x){return x.status!=='closed'}).slice(0,5);
+    for(var j=0;j<active.length;j++){var w=active[j];var clsBg=w.status==='pending'?'bg-pending':'bg-active';html+='<div class="tf-item" onclick="openWoDetail(\''+w.order_no+'\')"><span class="tf-dot w-blue"></span><div class="tf-info"><div class="tf-title-line">'+w.title+'</div><div class="tf-sub">'+w.site_name+' · '+(SM[w.status]||w.status)+'</div></div><span class="tf-badge '+clsBg+'">'+(SM[w.status]||w.status)+'</span></div>';itemCount++}
+  }
+
+  // Inspections
+  if(insp&&insp.length){
+    var pendingInsp=insp.filter(function(x){return x.status!=='completed'}).slice(0,3);
+    for(var k=0;k<pendingInsp.length;k++){var p=pendingInsp[k],done=p.completed_items||0,allT=p.total_items||0;html+='<div class="tf-item" onclick="openInspChecklist('+p.id+')"><span class="tf-dot w-green"></span><div class="tf-info"><div class="tf-title-line">'+(p.plan_name||'')+'</div><div class="tf-sub">'+(p.site_name||'')+' · '+(done)+'/'+allT+'项</div></div><span class="tf-badge bg-active">'+done+'/'+allT+'</span></div>';itemCount++}
+  }
+
+  if(!html)html='<div class="tf-empty">暂无待处理任务 &#127881;</div>';
+  document.getElementById('task-feed-list').innerHTML=html;
+  document.getElementById('tf-see-all').style.display=itemCount>5?'inline':'none';
+}
+
+// ===== Inline View Management =====
+function openView(name){
+  if(name==='orders')loadOrdersList();
+  else if(name==='inspection')loadInspectionsList();
+  else if(name==='manual')showManual();
+  else if(name==='parts')loadPartsSites();
+  document.getElementById('view-'+name).classList.add('open');
+}
+function closeView(name){document.getElementById('view-'+name).classList.remove('open')}
+
+// ===== Search =====
+var allSites=[];
+async function loadSitesForSearch(){
+  var s=await af('/sites');
+  if(s)allSites=s;
+}
+function openSearch(){
+  document.getElementById('search-overlay').classList.add('open');
+  document.getElementById('so-input').value='';
+  document.getElementById('so-input').focus();
+  doSearch();
+}
+function closeSearch(){document.getElementById('search-overlay').classList.remove('open')}
+function doSearch(){
+  var q=document.getElementById('so-input').value.trim().toLowerCase();
+  var filtered=q?allSites.filter(function(s){return s.name.toLowerCase().includes(q)||s.code.toLowerCase().includes(q)||(s.district||'').toLowerCase().includes(q)||(s.river||'').toLowerCase().includes(q)}).slice(0,20):allSites.slice(0,20);
+  var html='';
+  if(!filtered.length){html='<div class="so-empty">'+(q?'未找到匹配站点':'输入关键词搜索站点')+'</div>'}
+  else for(var i=0;i<filtered.length;i++){var s=filtered[i];html+='<div class="so-result" onclick="showSiteDetail('+s.id+')"><span class="sr-dot '+(s.status||'online')+'"></span><div class="sr-info"><div class="sr-name">'+s.name+'</div><div class="sr-meta">'+(TM[s.type]||s.type)+' · '+(s.district||'')+'</div></div></div>'}
+  document.getElementById('so-body').innerHTML=html;
+}
+
+// ===== Site Detail =====
+async function showSiteDetail(siteId){
+  closeSearch();
+  var s=allSites.find(function(x){return x.id===siteId});
+  if(!s){showToast('站点数据未找到');return}
+  document.getElementById('site-detail-overlay').classList.add('open');
+  document.getElementById('sd-name').textContent=s.name;
+  document.getElementById('sd-body').innerHTML='<div class="loading">加载中...</div>';
+  var d=await af('/data/site/'+siteId+'?limit=24');
+  var rt=await af('/data/realtime');
+  var rv=null;if(rt)rv=rt.find(function(x){return x.id===siteId});
+  var v=rv?rv.latest_value:'--',u=rv?rv.latest_unit||'':'';
+
+  var html='<div class="iv-card">';
+  html+='<div style="font-size:11px;color:#999;margin-bottom:4px">'+(TM[s.type]||s.type)+' · '+s.code+'</div>';
+  html+='<div style="font-size:11px;color:#666">'+s.district+' '+s.river+'</div>';
+  if(rv){html+='<div style="margin-top:10px;display:flex;align-items:baseline;gap:6px"><span style="font-size:28px;font-weight:700;color:'+(s.status==='offline'?'#f5a623':'#1a6dd4')+'">'+v+'</span><span style="font-size:12px;color:#999">'+u+'</span></div>';
+  html+='<div style="font-size:11px;color:#999;margin-top:2px">'+(rv.latest_metric||'')+' · '+(rv.latest_time||'').substring(0,16)+'</div>'}
+  html+='<div style="margin-top:8px"><span style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+(s.status==='offline'?'rgba(245,166,35,0.1)':'rgba(46,160,128,0.1)')+';color:'+(s.status==='offline'?'#f5a623':'#2ea080')+'">'+(s.status==='online'?'在线':'离线')+'</span></div>';
+  html+='</div>';
+
+  if(d&&d.length){
+    html+='<div class="iv-card"><div style="font-size:13px;font-weight:600;color:#1a2332;margin-bottom:8px">最近24小时数据</div>';
+    html+='<div style="max-height:200px;overflow-y:auto">';
+    for(var i=0;i<Math.min(d.length,24);i++){var r=d[i];html+='<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #f8f8f8"><span style="color:#666">'+(r.recorded_at||'').substring(5,16)+'</span><span style="color:#1a2332">'+r.value+' '+r.unit+'</span></div>'}
+    html+='</div></div>';
+  }
+  document.getElementById('sd-body').innerHTML=html;
+}
+function closeSiteDetail(){document.getElementById('site-detail-overlay').classList.remove('open')}
+
+// ===== Work Orders =====
+var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
+var SC={pending:'#999',accepted:'#2ea080',generated:'#1a6dd4',dispatched:'#f5a623',in_progress:'#2ea080',reviewing:'#1a6dd4',acceptance:'#f5a623',closed:'#999'};
+var currentOrderNo=null;
+
+async function loadOrdersList(){
+  var o=await af('/workorders?limit=50');
+  var html='';
+  if(o&&o.length){
+    var active=o.filter(function(x){return x.status!=='closed'});
+    var closed=o.filter(function(x){return x.status==='closed'});
+    var sorted=active.concat(closed.slice(0,5));
+    for(var i=0;i<sorted.length;i++){var w=sorted[i],s=w.status||'pending';html+='<div class="iv-card" onclick="openWoDetail(\''+w.order_no+'\')"><div style="font-size:10px;color:#1a6dd4;margin-bottom:4px;font-family:monospace">'+(w.order_no||'')+'</div><div style="font-size:14px;color:#1a2332;margin-bottom:4px">'+(w.title||'')+'</div><div style="font-size:11px;color:#999">'+w.site_name+' · '+(SM[s]||s)+(w.assignee?' · '+w.assignee:'')+'</div></div>'}
+    if(!html)html='<div class="empty">暂无工单</div>';
+  }else html='<div class="empty">暂无工单</div>';
+  document.getElementById('iv-orders-body').innerHTML=html;
+}
+
+async function openWoDetail(orderNo){
+  currentOrderNo=orderNo;
+  document.getElementById('view-orders').classList.remove('open');
+  document.getElementById('wo-detail-title').textContent='工单 '+orderNo;
+  document.getElementById('view-wo-detail').classList.add('open');
+  document.getElementById('iv-wo-detail-body').innerHTML='<div class="loading">加载中...</div>';
+
+  var all=await af('/workorders?limit=100');
+  var w=all?all.find(function(x){return x.order_no===orderNo}):null;
+  if(!w){document.getElementById('iv-wo-detail-body').innerHTML='<div class="empty">工单不存在</div>';return}
+
+  var s=w.status||'pending';
+  var html='<div class="iv-card wo-detail">';
+  html+='<div class="wo-no">'+w.order_no+'</div>';
+  html+='<div class="wo-title">'+w.title+'</div>';
+  html+='<div class="wo-meta">';
+  html+='<span class="tag'+(w.level==='critical'?' urgent':'')+'">'+(w.level==='critical'?'紧急':w.level==='urgent'?'重要':'常规')+'</span>';
+  html+='<span class="tag">'+w.site_name+'</span>';
+  html+='<span class="tag">'+w.source+'</span>';
+  html+='</div>';
+  if(w.description)html+='<div class="wo-desc">'+w.description+'</div>';
+  if(w.assignee)html+='<div style="font-size:11px;color:#999;margin-bottom:6px">责任人: '+w.assignee+'</div>';
+  if(w.sla_deadline)html+='<div style="font-size:11px;color:'+(new Date(w.sla_deadline)<new Date()?'#e94560':'#999')+';margin-bottom:10px">SLA截止: '+w.sla_deadline.substring(0,16)+'</div>';
+
+  // Status badge
+  html+='<div style="margin-bottom:12px"><span style="font-size:11px;padding:3px 10px;border-radius:10px;background:'+(SC[s]||'#999')+'20;color:'+(SC[s]||'#999')+'">'+(SM[s]||s)+'</span></div>';
+
+  // Action buttons
+  html+='<div class="wo-actions">';
+  var actions=getWoActions(s);
+  for(var i=0;i<actions.length;i++){var a=actions[i];html+='<button class="'+a.cls+'" onclick="'+a.fn+'">'+a.label+'</button>'}
+  html+='</div>';
+
+  if(s==='closed')html+='<div style="font-size:11px;color:#2ea080;margin-top:10px">此工单已完成 '+(w.resolved_at||'')+'</div>';
+  html+='</div>';
+  document.getElementById('iv-wo-detail-body').innerHTML=html;
+}
+
+function getWoActions(status){
+  var acts={
+    pending:[{label:'受理工单',cls:'btn-accept',fn:'doWoAction("accepted")'}],
+    accepted:[{label:'生成方案',cls:'btn-accept',fn:'doWoAction("generated")'},{label:'关闭工单',cls:'btn-close',fn:'doWoAction("closed")'}],
+    generated:[{label:'派发工单',cls:'btn-accept',fn:'doWoAction("dispatched")'}],
+    dispatched:[{label:'开始处置',cls:'btn-process',fn:'doWoAction("in_progress")'}],
+    in_progress:[{label:'提交审核',cls:'btn-process',fn:'doWoAction("reviewing")'}],
+    reviewing:[{label:'进入验收',cls:'btn-accept',fn:'doWoAction("acceptance")'}],
+    acceptance:[{label:'关闭工单',cls:'btn-process',fn:'doWoAction("closed")'}],
+    closed:[]
+  };
+  return acts[status]||[];
+}
+
+async function doWoAction(newStatus){
+  if(!currentOrderNo)return;
+  try{
+    var r=await fetch(API+'/workorders/'+currentOrderNo+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:newStatus})});
+    var j=await r.json();
+    if(j.success||!j.error){showToast('操作成功');closeWoDetail();updateTaskCounter();loadTaskFeed()}
+    else showToast('操作失败: '+(j.error||''));
+  }catch(e){showToast('网络错误')}
+}
+
+function closeWoDetail(){
+  document.getElementById('view-wo-detail').classList.remove('open');
+  currentOrderNo=null;
+}
+
+// ===== Inspections =====
+var insTaskData={};
+
+async function loadInspectionsList(){
+  var all=await af('/inspections');
+  var html='';
+  if(all&&all.length){
+    var pending=all.filter(function(x){return x.status!=='completed'});
+    if(pending.length){
+      for(var i=0;i<pending.length;i++){var t=pending[i],done=t.completed_items||0,allT=t.total_items||0,pct=allT?Math.round(done/allT*100):0;html+='<div class="iv-card" onclick="openInspChecklist('+t.id+')"><div style="font-size:13px;color:#1a2332;margin-bottom:4px;font-weight:500">'+(t.plan_name||'巡检计划')+'</div><div style="font-size:11px;color:#999;margin-bottom:8px">'+(t.site_name||'')+' · '+(t.start_date||'')+' ~ '+(t.end_date||'')+'</div><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:#2ea080;border-radius:3px"></div></div><span style="font-size:10px;color:#666">'+done+'/'+allT+'</span></div></div>'}
+      if(!html)html='<div class="empty">巡检任务已完成</div>';
+    }else html='<div class="empty">暂无待巡检任务</div>';
+  }else html='<div class="empty">暂无巡检计划</div>';
+  document.getElementById('iv-inspection-body').innerHTML=html;
+}
+
+async function openInspChecklist(planId){
+  document.getElementById('view-inspection').classList.remove('open');
+  document.getElementById('view-insp-checklist').classList.add('open');
+  document.getElementById('iv-insp-checklist-body').innerHTML='<div class="loading">加载中...</div>';
+
+  var allPlans=await af('/inspections');
+  var plan=allPlans?allPlans.find(function(x){return x.id===planId}):null;
+  var tasks=await af('/inspections/'+planId+'/tasks');
+  if(!plan||!tasks){document.getElementById('iv-insp-checklist-body').innerHTML='<div class="empty">数据加载失败</div>';return}
+
+  insTaskData[planId]=tasks;
+  document.getElementById('insp-title').textContent=plan.plan_name||'巡检清单';
+  var doneCount=tasks.filter(function(x){return x.result}).length;
+  var total=tasks.length,pct=total?Math.round(doneCount/total*100):0;
+
+  var html='<div class="iv-card"><div class="insp-header"><div class="insp-name">'+(plan.plan_name||'')+'</div><div class="insp-meta">'+(plan.site_name||'')+' · '+(plan.start_date||'')+' ~ '+(plan.end_date||'')+'</div></div><div class="insp-progress"><div class="insp-bar"><div class="insp-bar-fill" id="insp-bar-'+planId+'" style="width:'+pct+'%"></div></div><span class="insp-progress-text" id="insp-prog-'+planId+'">'+doneCount+'/'+total+' ('+pct+'%)</span></div></div>';
+
+  html+='<div class="iv-card">';
+  for(var i=0;i<tasks.length;i++){var t=tasks[i],done=!!t.result,isAb=t.result==='abnormal';html+='<div class="ck-item" id="ck-item-'+t.id+'"><span class="ck-no '+(done?(isAb?'abnormal':'normal'):'todo')+'">'+(done?(isAb?'✕':'✓'):(i+1))+'</span><div class="ck-info"><div class="ck-name">'+t.check_item+'</div>'+(t.remark?'<div class="ck-remark">'+t.remark+'</div>':'')+'</div>'+(!done?'<div class="ck-btns"><button class="btn-ok" onclick="checkItem('+t.id+',\'normal\')">正常</button><button class="btn-ng" onclick="checkItem('+t.id+',\'abnormal\')">异常</button></div>':'<span class="ck-done-label">'+(isAb?'异常':'正常')+'</span>')+'</div>'}
+  html+='</div>';
+
+  document.getElementById('iv-insp-checklist-body').innerHTML=html;
+}
+
+async function checkItem(taskId,result){
+  try{
+    var now=new Date().toISOString().replace('T',' ').substring(0,19);
+    var r=await fetch(API+'/inspections/tasks/'+taskId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({result:result,check_time:now})});
+    var j=await r.json();
+    if(j.success||!j.error){
+      showToast(result==='normal'?'已标记正常':'已标记异常');
+      // Update UI inline
+      var el=document.getElementById('ck-item-'+taskId);
+      if(el){
+        var noEl=el.querySelector('.ck-no');
+        noEl.className='ck-no '+(result==='normal'?'normal':'abnormal');
+        noEl.textContent=result==='normal'?'✓':'✕';
+        var btns=el.querySelector('.ck-btns');
+        if(btns)btns.outerHTML='<span class="ck-done-label">'+(result==='abnormal'?'异常':'正常')+'</span>';
+      }
+      updateTaskCounter();loadTaskFeed();
+    }else showToast('操作失败');
+  }catch(e){showToast('网络错误')}
+}
+
+function closeInspChecklist(){
+  document.getElementById('view-insp-checklist').classList.remove('open');
+}
+
+// ===== Parts Application =====
+async function loadPartsSites(){
+  var s=await af('/sites');
+  var sel=document.getElementById('parts-site');
+  if(s&&s.length){sel.innerHTML='';for(var i=0;i<s.length;i++){sel.innerHTML+='<option value="'+s[i].name+'">'+s[i].name+'</option>'}}
+}
+function submitParts(){
+  showToast('申请已提交（演示模式）');
+  setTimeout(function(){closeView('parts')},1000);
+}
+
+// ===== Manuals =====
+function showManual(){
+  var manuals=[
+    {title:'水文监测设备运维手册',cat:'设备操作'},
+    {title:'在线监测系统故障排查指南',cat:'故障处理'},
+    {title:'雨量站巡检操作规程',cat:'巡检规范'},
+    {title:'水位计校准标准流程',cat:'校准规范'},
+    {title:'数据传输异常处理方案',cat:'故障处理'},
+    {title:'汛期值班工作制度',cat:'制度规范'},
+    {title:'安全生产工作流程',cat:'安全规范'},
+    {title:'备品备件管理制度',cat:'仓库管理'}
+  ];
+  var html='';
+  for(var i=0;i<manuals.length;i++){var m=manuals[i];html+='<div class="manual-item"><div class="m-icon">&#128196;</div><div class="m-info"><div class="m-title">'+m.title+'</div><div class="m-desc">'+m.cat+'</div></div><div class="m-arrow">&#8250;</div></div>'}
+  document.getElementById('iv-manual-body').innerHTML=html;
+}
+
+// ===== Init =====
+async function init(){
+  updateDateTime();
+  updateWeather();
+  await loadSitesForSearch();
+  await updateTaskCounter();
+  await loadTaskFeed();
+  setInterval(function(){updateDateTime();updateTaskCounter();loadTaskFeed()},30000);
+}
+init();
+</script>
+</body>
+</html>

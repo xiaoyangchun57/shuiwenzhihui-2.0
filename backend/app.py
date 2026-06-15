@@ -2244,6 +2244,11 @@ FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'f
 def index_html():
     return send_from_directory(FRONTEND_DIR, 'dashboard.html')
 
+# 移动端（放在catch-all前面）
+@app.route('/mobile')
+def mobile_page():
+    return send_from_directory(FRONTEND_DIR, 'mobile.html')
+
 @app.route('/<path:filename>')
 def serve_frontend(filename):
     return send_from_directory(FRONTEND_DIR, filename)
