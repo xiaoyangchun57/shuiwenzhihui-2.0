@@ -2,632 +2,1159 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>水文运维 - 移动端</title>
+<script src="lib/chart.umd.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f0f4f8;color:#1a2332;overflow-x:hidden}
-.app{width:100%;max-width:420px;margin:0 auto;min-height:100vh;background:#f0f4f8}
+/* ===== CSS Reset & Design Tokens ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+  background:#f5f5f5;color:var(--text-primary);line-height:1.5;height:100vh;overflow:hidden;
+  transition:background .25s,color .25s;display:flex;justify-content:center;align-items:stretch
+}
 
-/* === Top Bar === */
-.top-bar{display:flex;align-items:flex-start;padding:14px 16px 12px;gap:10px;background:linear-gradient(135deg,#1a6dd4 0%,#2580e8 100%);color:#fff}
-.tb-left{display:flex;align-items:center;gap:10px;min-width:0}
-.tb-day{font-size:38px;font-weight:700;color:#fff;line-height:1;min-width:44px}
-.tb-date-info{display:flex;flex-direction:column;gap:1px}
-.tb-date-str{font-size:11px;color:rgba(255,255,255,0.8)}
-.tb-weekday{font-size:12px;color:rgba(255,255,255,0.8)}
-.tb-weather{font-size:11px;color:rgba(255,255,255,0.9);line-height:1.3;margin-top:1px}
-.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
-.tb-search{background:rgba(255,255,255,0.2);border-radius:18px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;user-select:none}
-.tb-search:active{background:rgba(255,255,255,0.3)}
-.tb-avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:600;flex-shrink:0}
+/* ===== Design Tokens - Light ===== */
+:root{
+  --brand:#07C160;--brand-light:rgba(7,193,96,0.08);--brand-dark:#06ad56;
+  --bg-primary:#ededed;--bg-card:#ffffff;--bg-card-hover:#fafafa;
+  --text-primary:#191919;--text-secondary:rgba(0,0,0,.55);--text-tertiary:rgba(0,0,0,.35);--text-inverse:#fff;
+  --border-color:rgba(0,0,0,.08);--divider:rgba(0,0,0,.05);
+  --danger:#fa5151;--danger-bg:rgba(250,81,81,.08);--warning:#ff9800;--warning-bg:rgba(255,152,0,.08);
+  --info:#10aeff;--info-bg:rgba(16,174,255,.08);--success:var(--brand);
+  --shadow-sm:0 1px 3px rgba(0,0,0,.04);--shadow-md:0 2px 8px rgba(0,0,0,.06);
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;
+  --space-xs:4px;--space-sm:8px;--space-md:12px;--space-lg:16px;--space-xl:24px;--space-2xl:32px;
+  --status-bar-h:44px;--nav-bar-h:44px;--tabbar-h:50px;
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
 
-/* === Task Counter === */
-.task-counter{background:#fff;margin:-8px 12px 0;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);position:relative;z-index:2}
-.tc-row{display:flex;align-items:baseline;gap:8px}
-.tc-big{font-size:40px;font-weight:700;color:#1a6dd4;line-height:1}
-.tc-label{font-size:15px;color:#666}
-.tc-breakdown{display:flex;gap:12px;margin-top:10px;font-size:11px;color:#999}
-.tc-breakdown span{padding:3px 8px;background:#f0f4f8;border-radius:10px;white-space:nowrap}
-.tc-breakdown .tc-alert{color:#e94560}
-.tc-breakdown .tc-wo{color:#1a6dd4}
-.tc-breakdown .tc-insp{color:#2ea080}
+/* ===== Dark Mode ===== */
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-primary:#111;--bg-card:#1e1e1e;--bg-card-hover:#262626;
+    --text-primary:#e5e5e5;--text-secondary:rgba(255,255,255,.55);--text-tertiary:rgba(255,255,255,.35);
+    --border-color:rgba(255,255,255,.08);--divider:rgba(255,255,255,.05);
+    --danger:#f06a6a;--danger-bg:rgba(240,106,106,.12);--warning:#ffb340;--warning-bg:rgba(255,179,64,.12);
+    --info:#5ccaff;--info-bg:rgba(92,202,255,.12);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.2);--shadow-md:0 2px 8px rgba(0,0,0,.3)
+  }
+}
 
-/* === Alert Strip === */
-.alert-strip{display:none;align-items:center;gap:8px;margin:10px 12px 0;padding:10px 14px;background:#fff3f3;border-radius:8px;font-size:12px;color:#e94560;cursor:pointer}
-.alert-strip.show{display:flex}
-.alert-strip .as-icon{font-size:16px}
-.alert-strip .as-count{font-weight:600}
-.alert-strip .as-arrow{margin-left:auto;color:#e94560;opacity:0.5}
+/* ===== Phone Frame ===== */
+.app{width:375px;max-width:100vw;height:100vh;background:var(--bg-primary);position:relative;overflow:hidden;display:flex;flex-direction:column;margin:0 auto}
 
-/* === Task Feed === */
-.task-feed{margin:10px 12px 0;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
-.tf-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px}
-.tf-title{font-size:13px;font-weight:600;color:#1a2332}
-.tf-see-all{font-size:11px;color:#1a6dd4;cursor:pointer;padding:4px}
-.tf-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer}
-.tf-item:last-child{border-bottom:none}
-.tf-item:active{background:#f7f9fc}
-.tf-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.tf-dot.w-red{background:#e94560}
-.tf-dot.w-orange{background:#f5a623}
-.tf-dot.w-blue{background:#1a6dd4}
-.tf-dot.w-green{background:#2ea080}
-.tf-dot.w-gray{background:#ccc}
-.tf-info{flex:1;min-width:0}
-.tf-info .tf-title-line{font-size:13px;color:#1a2332;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tf-info .tf-sub{font-size:11px;color:#999;margin-top:2px}
-.tf-badge{font-size:10px;padding:2px 8px;border-radius:10px;flex-shrink:0;font-weight:500;white-space:nowrap}
-.bg-pending{background:rgba(153,153,153,0.15);color:#999}
-.bg-active{background:rgba(46,160,128,0.1);color:#2ea080}
-.bg-urgent{background:rgba(233,69,96,0.1);color:#e94560}
-.bg-done{background:rgba(26,109,212,0.1);color:#1a6dd4}
-.tf-empty{text-align:center;padding:24px;color:#ccc;font-size:12px}
+/* ===== Status Bar ===== */
+.status-bar{height:var(--status-bar-h);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;z-index:100}
+.status-bar-l{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--text-primary)}
+.status-bar-r{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-primary)}
 
-/* === Quick Actions === */
-.quick-actions{display:flex;justify-content:space-around;padding:12px;gap:4px}
-.qa-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px;border-radius:10px;cursor:pointer;min-width:0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
-.qa-item:active{background:#f7f9fc}
-.qa-item .icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
-.qa-item .name{font-size:11px;color:#444;white-space:nowrap;font-weight:500}
-.qa-item:nth-child(1) .icon{background:rgba(26,109,212,0.1);color:#1a6dd4}
-.qa-item:nth-child(2) .icon{background:rgba(46,160,128,0.1);color:#2ea080}
-.qa-item:nth-child(3) .icon{background:rgba(245,166,35,0.1);color:#f5a623}
-.qa-item:nth-child(4) .icon{background:rgba(139,92,246,0.1);color:#8b5cf6}
+/* ===== Nav Bar ===== */
+.nav-bar{height:var(--nav-bar-h);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;padding:0 88px}
+.nav-title{font-size:17px;font-weight:600;color:var(--text-primary);letter-spacing:.3px;text-align:center}
+.nav-capsule{position:absolute;right:16px;top:50%;transform:translateY(-50%);width:78px;height:30px;border-radius:15px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:space-around;padding:0 4px;cursor:pointer}
+.nav-capsule:hover{background:rgba(0,0,0,.1)}
+.capsule-dot{width:9px;height:9px;border-radius:50%;background:var(--text-secondary);opacity:.5}
 
-/* === Inline Views === */
-.inline-view{display:none;position:fixed;top:0;left:0;right:0;max-width:420px;margin:0 auto;bottom:0;background:#f0f4f8;z-index:200;overflow-y:auto}
+/* ===== Scrollable Content ===== */
+.app-content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-lg))}
+.app-content::-webkit-scrollbar{width:3px}
+.app-content::-webkit-scrollbar-track{background:transparent}
+.app-content::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:3px}
+
+/* ===== Page Wrapper ===== */
+.page{display:none;padding:0 var(--space-lg);flex-direction:column;gap:var(--space-lg)}
+.page.active{display:flex}
+.page-no-pad{padding:0 !important}
+
+/* ===== Header Area (Sky Blue Gradient) ===== */
+.header-area{background:linear-gradient(180deg,#d6ecf7 0%,#e8f4fb 100%);border-radius:var(--radius-lg);padding:var(--space-lg) var(--space-xl) var(--space-xl);position:relative;overflow:hidden;flex-shrink:0}
+.header-search-row{display:flex;align-items:center;gap:var(--space-md);margin-bottom:var(--space-lg)}
+.header-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#8fdca0,#07C160);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
+.header-search{flex:1;height:36px;border-radius:18px;background:rgba(255,255,255,.85);display:flex;align-items:center;gap:var(--space-sm);padding:0 14px;font-size:13px;color:var(--text-tertiary)}
+.header-date{font-size:13px;color:var(--text-secondary);margin-bottom:var(--space-xs)}
+.header-weather{font-size:12px;color:var(--text-tertiary);margin-bottom:var(--space-md)}
+.header-weather-row{display:flex;align-items:flex-end;justify-content:space-between}
+.weather-icon-big{font-size:52px;line-height:1}
+.todo-count-wrap{display:flex;align-items:baseline;gap:4px}
+.todo-label{font-size:15px;font-weight:500;color:var(--text-primary)}
+.todo-num{font-size:32px;font-weight:700;color:var(--danger);line-height:1}
+.todo-unit{font-size:14px;color:var(--text-tertiary)}
+.todo-sub{display:flex;gap:var(--space-sm);margin-top:var(--space-sm);font-size:10px}
+.todo-sub span{padding:2px 8px;border-radius:10px;font-weight:500}
+.todo-sub .ts-alert{background:var(--danger-bg);color:var(--danger)}
+.todo-sub .ts-wo{background:var(--brand-light);color:var(--brand)}
+.todo-sub .ts-insp{background:rgba(16,174,255,.08);color:var(--info)}
+
+/* ===== Quick Actions Row (Folder Style) ===== */
+.quick-row{display:flex;gap:2px;overflow-x:auto;padding:var(--space-xs) 0;scrollbar-width:none;flex-shrink:0}
+.quick-row::-webkit-scrollbar{display:none}
+.quick-btn{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:64px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
+.quick-btn:active{opacity:.65;transition:opacity .1s}
+.quick-folder{width:48px;height:48px;border-radius:var(--radius-md);background:linear-gradient(160deg,#4fc3f7 0%,#29b6f6 50%,#03a9f4 100%);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 2px 6px rgba(3,169,244,.25)}
+.quick-folder::before{content:'';position:absolute;top:6px;left:8px;right:8px;height:10px;border-radius:4px 4px 0 0;background:rgba(255,255,255,.28)}
+.quick-folder::after{content:'';position:absolute;bottom:6px;left:10px;right:10px;height:6px;border-radius:3px;background:rgba(255,255,255,.18)}
+.quick-folder.green{background:linear-gradient(160deg,#69d68f 0%,#4ecb78 50%,#07C160 100%);box-shadow:0 2px 6px rgba(7,193,96,.25)}
+.quick-folder.orange{background:linear-gradient(160deg,#ffb74d 0%,#ffa726 50%,#fb8c00 100%);box-shadow:0 2px 6px rgba(251,140,0,.25)}
+.quick-folder.purple{background:linear-gradient(160deg,#b39ddb 0%,#9575cd 50%,#7e57c2 100%);box-shadow:0 2px 6px rgba(126,87,194,.25)}
+.quick-btn-label{font-size:11px;color:var(--text-secondary);white-space:nowrap}
+
+/* ===== Segmented Control ===== */
+.segment-control{background:var(--bg-card);border-radius:8px;display:flex;padding:3px;box-shadow:var(--shadow-sm);flex-shrink:0}
+.seg-item{flex:1;text-align:center;font-size:13px;font-weight:500;color:var(--text-secondary);padding:8px 0;border-radius:6px;cursor:pointer;transition:all .2s;user-select:none;min-height:32px;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.seg-item.active{background:var(--brand);color:#fff;font-weight:600;box-shadow:0 1px 4px rgba(7,193,96,.3)}
+
+/* ===== Panel ===== */
+.swipe-panel{display:none}
+.swipe-panel.active{display:block}
+
+/* ===== WeUI Card ===== */
+.weui-card{background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-lg);box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .15s,box-shadow .15s;min-height:72px;touch-action:manipulation;margin-bottom:var(--space-sm)}
+.weui-card:active{transform:scale(.98);box-shadow:none}
+.weui-card:last-child{margin-bottom:0}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-sm);gap:var(--space-sm)}
+.card-title{font-size:14px;font-weight:500;color:var(--text-primary);line-height:1.4;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-sub{font-size:12px;color:var(--text-tertiary);margin-top:var(--space-xs)}
+
+/* Status Badge */
+.status-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;white-space:nowrap;flex-shrink:0;letter-spacing:.3px}
+.sb-process{background:var(--brand-light);color:var(--brand)}
+.sb-done{background:var(--brand-light);color:var(--brand)}
+.sb-pending{background:var(--bg-primary);color:var(--text-secondary)}
+.sb-danger{background:var(--danger-bg);color:var(--danger)}
+.sb-info{background:var(--info-bg);color:var(--info)}
+
+/* Progress Bar */
+.progress-wrap{display:flex;align-items:center;gap:var(--space-md);margin-top:var(--space-xs)}
+.progress-bar{flex:1;height:6px;background:var(--bg-primary);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;background:var(--brand);transition:width .4s ease}
+.progress-pct{font-size:12px;color:var(--text-tertiary);min-width:34px;text-align:right}
+
+/* Level Badge */
+.level-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.level-red{background:var(--danger)}.level-orange{background:var(--warning)}.level-yellow{background:#ffd000}
+
+/* ===== Stats Row ===== */
+.stats-row{display:flex;gap:var(--space-sm)}
+.stat-box{flex:1;background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-md);text-align:center;box-shadow:var(--shadow-sm)}
+.stat-box .sn{font-size:22px;font-weight:700;color:var(--brand)}
+.stat-box .sl{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+.stat-box.danger .sn{color:var(--danger)}
+.stat-box.warning .sn{color:var(--warning)}
+
+/* ===== Site List Items ===== */
+.sm-item,.si-item{display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-md);background:var(--bg-card);border-bottom:.5px solid var(--divider);cursor:pointer;touch-action:manipulation;transition:background .15s}
+.sm-item:active,.si-item:active{background:var(--bg-card-hover)}
+.si-item:first-of-type{border-radius:var(--radius-md) var(--radius-md) 0 0}
+.si-item:last-of-type{border-radius:0 0 var(--radius-md) var(--radius-md);border-bottom:none}
+.si-item:only-of-type{border-radius:var(--radius-md)}
+.sm-dot,.si-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-online{background:var(--brand)}.dot-offline{background:var(--danger)}
+.sm-info,.si-info{flex:1;min-width:0}
+.sm-info .sm-name,.si-info .si-name{font-size:14px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm-info .sm-meta,.si-info .si-meta{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.sm-pin{font-size:14px;color:var(--text-tertiary);padding:2px 4px;flex-shrink:0;cursor:pointer}
+.sm-pin.pinned{color:var(--warning)}
+.si-arrow{color:var(--text-tertiary);font-size:16px}
+
+/* ===== Category Filters ===== */
+.site-tabs{display:flex;gap:0;overflow-x:auto;padding:0 0 var(--space-sm)}
+.site-tab{flex-shrink:0;padding:5px 14px;font-size:12px;border-radius:14px;background:var(--bg-card);color:var(--text-secondary);cursor:pointer;margin-right:6px;border:.5px solid var(--border-color);transition:all .2s}
+.site-tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+/* ===== Search ===== */
+.si-filter{padding:0 0 var(--space-sm)}
+.si-filter input{width:100%;padding:8px 14px;border:.5px solid var(--border-color);border-radius:18px;font-size:13px;background:var(--bg-card);color:var(--text-primary);outline:none}
+.si-filter input:focus{border-color:var(--brand)}
+
+/* ===== Batch Bar ===== */
+.batch-bar{display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-sm) 0;font-size:11px;color:var(--brand)}
+.batch-bar button{padding:4px 12px;border:none;border-radius:14px;font-size:11px;cursor:pointer;font-weight:500;background:var(--brand-light);color:var(--brand)}
+.batch-bar button.batch-primary{background:var(--brand);color:#fff}
+#batch-count{flex:1;color:var(--text-secondary)}
+
+/* ===== Alert List ===== */
+.al-item{display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-md);background:var(--bg-card);border-bottom:.5px solid var(--divider);cursor:pointer;touch-action:manipulation}
+.al-item:first-of-type{border-radius:var(--radius-md) var(--radius-md) 0 0}
+.al-item:last-of-type{border-radius:0 0 var(--radius-md) var(--radius-md);border-bottom:none}
+.al-item:only-of-type{border-radius:var(--radius-md)}
+.al-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--border-color);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transition:all .2s}
+.al-check.checked{background:var(--brand);border-color:var(--brand)}
+.al-info{flex:1;min-width:0}
+.al-info .al-msg{font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-info .al-site{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.al-time{font-size:11px;color:var(--text-tertiary);flex-shrink:0}
+
+/* ===== Bottom TabBar ===== */
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:calc(var(--tabbar-h) + var(--safe-bottom));padding-bottom:var(--safe-bottom);background:var(--bg-card);border-top:.5px solid var(--border-color);display:flex;align-items:center;justify-content:space-around;z-index:200;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);flex-shrink:0}
+.tab-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;min-width:56px;cursor:pointer;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.tab-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-tertiary);transition:color .2s}
+.tab-label{font-size:10px;color:var(--text-tertiary);font-weight:500;transition:color .2s}
+.tab-item.active .tab-icon,.tab-item.active .tab-label{color:var(--brand)}
+
+/* ===== Inline Views ===== */
+.inline-view{display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:375px;bottom:0;background:var(--bg-primary);z-index:300;overflow-y:auto}
 .inline-view.open{display:block}
-.iv-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#1a6dd4 0%,#2580e8 100%);color:#fff;position:sticky;top:0;z-index:10}
-.iv-header .back{font-size:20px;cursor:pointer;padding:4px 8px 4px 0;user-select:none}
-.iv-header .iv-title{font-size:16px;font-weight:600}
-.iv-body{padding:12px 14px}
-.iv-card{background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.iv-header{display:flex;align-items:center;gap:var(--space-md);padding:0 var(--space-lg);height:var(--nav-bar-h);background:var(--bg-card);position:sticky;top:0;z-index:10;border-bottom:.5px solid var(--divider)}
+.iv-header .back{font-size:20px;cursor:pointer;padding:4px;user-select:none;color:var(--text-secondary)}
+.iv-header .iv-title{font-size:17px;font-weight:600;color:var(--text-primary);flex:1}
+.iv-header-extra{padding:4px 12px;background:var(--brand-light);color:var(--brand);border-radius:14px;font-size:12px;cursor:pointer;font-weight:500}
+.iv-body{padding:var(--space-lg)}
+.iv-card{background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-sm);box-shadow:var(--shadow-sm)}
+.iv-card:last-child{margin-bottom:0}
 
-/* === Work Order Detail === */
-.wo-detail .wo-no{font-size:11px;color:#1a6dd4;font-family:monospace;margin-bottom:4px}
-.wo-detail .wo-title{font-size:16px;font-weight:600;color:#1a2332;margin-bottom:8px}
-.wo-detail .wo-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.wo-detail .wo-meta .tag{font-size:10px;padding:3px 8px;border-radius:4px;background:#f0f4f8;color:#666}
-.wo-detail .wo-meta .tag.urgent{background:rgba(233,69,96,0.1);color:#e94560}
-.wo-detail .wo-desc{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
-.wo-detail .wo-actions{display:flex;flex-wrap:wrap;gap:8px}
-.wo-detail .wo-actions button{flex:1;min-width:80px;padding:10px 12px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.wo-detail .wo-actions button:active{opacity:0.8}
-.btn-accept{background:#1a6dd4;color:#fff}
-.btn-process{background:#2ea080;color:#fff}
-.btn-close{background:#f5a623;color:#fff}
-.btn-gray{background:#eee;color:#999}
-.btn-danger{background:#e94560;color:#fff}
-.btn-outline{background:#fff;color:#1a6dd4;border:1px solid #1a6dd4}
+/* ===== Site Detail ===== */
+.sd-subtabs{display:flex;gap:0;background:var(--bg-card);margin:var(--space-sm) var(--space-lg) 0;border-radius:8px;padding:3px}
+.sd-subtab{flex:1;text-align:center;padding:8px 0;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:6px;transition:all .2s;min-height:32px;display:flex;align-items:center;justify-content:center}
+.sd-subtab.active{background:var(--brand);color:#fff;font-weight:600}
+.sd-panel{padding:var(--space-lg);display:none}
+.sd-panel.active{display:block}
+.sd-card{background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-sm);box-shadow:var(--shadow-sm)}
+.sd-dev-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid var(--divider);font-size:12px}
+.sd-dev-item:last-child{border-bottom:none}
+.sd-dev-name{color:var(--text-primary);flex:1;font-size:13px}
+.dev-status-online{color:var(--brand);font-weight:500}
+.dev-status-offline{color:var(--danger);font-weight:500}
+.sd-dev-offline{cursor:pointer;transition:background .15s}
+.sd-dev-offline:active{background:var(--danger-bg)}
+.sd-dev-offline .sd-dev-name::after{content:' ⚠️';font-size:14px}
+.data-metric{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:.5px solid var(--divider);font-size:12px}
+.data-metric:last-child{border-bottom:none}
+.dm-label{color:var(--text-secondary)}
+.dm-desc{font-size:10px;color:var(--text-tertiary)}
+.dm-value{font-weight:600;color:var(--text-primary);text-align:right}
+.dm-trend{font-size:10px;margin-left:4px}
+.dm-trend.up{color:var(--danger)}.dm-trend.down{color:var(--brand)}.dm-trend.flat{color:var(--text-tertiary)}
+.dm-time{font-size:10px;color:var(--text-tertiary);margin-top:4px}
 
-/* === Inspection Checklist === */
-.insp-header{margin-bottom:10px}
-.insp-header .insp-name{font-size:15px;font-weight:600;color:#1a2332}
-.insp-header .insp-meta{font-size:11px;color:#999;margin-top:4px}
-.insp-progress{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.insp-bar{flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden}
-.insp-bar-fill{height:100%;background:#2ea080;border-radius:3px;transition:width .3s}
-.insp-progress-text{font-size:11px;color:#666;white-space:nowrap}
-.ck-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f0f0f0}
-.ck-item .ck-no{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0}
-.ck-item .ck-no.todo{background:#ddd}
-.ck-item .ck-no.normal{background:#2ea080}
-.ck-item .ck-no.abnormal{background:#e94560}
-.ck-info{flex:1;min-width:0}
-.ck-info .ck-name{font-size:13px;color:#1a2332}
-.ck-info .ck-remark{font-size:10px;color:#999;margin-top:2px}
-.ck-btns{display:flex;gap:6px;flex-shrink:0}
-.ck-btns button{padding:6px 14px;border:none;border-radius:16px;font-size:12px;cursor:pointer;font-weight:500}
-.ck-btns button:active{opacity:0.8}
-.ck-btns .btn-ok{background:rgba(46,160,128,0.1);color:#2ea080}
-.ck-btns .btn-ng{background:rgba(233,69,96,0.1);color:#e94560}
-.ck-btns .btn-undo{background:#eee;color:#999}
-.ck-done-label{font-size:11px;color:#2ea080;font-weight:500;flex-shrink:0}
+/* ===== Alert Detail ===== */
+.al-detail .al-no{font-size:10px;color:var(--brand);font-family:monospace;margin-bottom:4px}
+.al-detail .al-title{font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:8px}
+.al-detail .al-meta{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.al-detail .al-meta .tag{font-size:10px;padding:2px 8px;border-radius:4px;background:var(--bg-primary);color:var(--text-secondary)}
+.al-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.al-actions button{padding:8px 16px;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500}
+.al-actions button:active{opacity:.8}
 
-/* === Search Overlay === */
-.search-overlay{display:none;position:fixed;top:0;left:0;right:0;max-width:420px;margin:0 auto;bottom:0;background:#f0f4f8;z-index:300}
-.search-overlay.open{display:flex;flex-direction:column}
-.so-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:1px solid #eee}
-.so-back{font-size:18px;cursor:pointer;color:#999;padding:4px;user-select:none}
-.so-input{flex:1;padding:8px 12px;border:none;background:#f5f7fa;border-radius:8px;font-size:14px;color:#1a2332;outline:none}
-.so-input::placeholder{color:#bbb}
-.so-body{flex:1;overflow-y:auto;padding:8px 14px}
-.so-result{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer}
-.so-result:active{background:rgba(26,109,212,0.03)}
-.so-result .sr-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.so-result .sr-dot.online{background:#2ea080}
-.so-result .sr-dot.offline{background:#f5a623}
-.so-result .sr-info{flex:1}
-.so-result .sr-info .sr-name{font-size:13px;color:#1a2332}
-.so-result .sr-info .sr-meta{font-size:11px;color:#999;margin-top:1px}
-.so-empty{text-align:center;padding:40px 0;color:#ccc;font-size:13px}
+/* ===== Form ===== */
+.form-group{margin-bottom:var(--space-md)}
+.form-group label{display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:.5px solid var(--border-color);border-radius:6px;font-size:14px;color:var(--text-primary);background:var(--bg-card);outline:none;-webkit-appearance:none}
+.form-group textarea{height:64px;resize:none}
+.btn-primary{width:100%;padding:10px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+.btn-primary:active{background:var(--brand-dark)}
+.btn-sm{padding:6px 14px;font-size:12px;border:none;border-radius:4px;cursor:pointer}
+.insp-tab-btn{flex:1;text-align:center;padding:8px;font-size:13px;font-weight:500;background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--divider);cursor:pointer;transition:all .15s;touch-action:manipulation}
+.insp-tab-btn:first-child{border-radius:6px 0 0 6px}
+.insp-tab-btn:last-child{border-radius:0 6px 6px 0}
+.insp-tab-btn.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.mt-4{margin-top:4px}.mt-8{margin-top:8px}.mt-12{margin-top:12px}
 
-/* === Site Detail Overlay === */
-.site-detail-overlay{display:none;position:fixed;top:0;left:0;right:0;max-width:420px;margin:0 auto;bottom:0;background:#f0f4f8;z-index:310;overflow-y:auto}
-.site-detail-overlay.open{display:block}
-.sd-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#1a6dd4 0%,#2580e8 100%);color:#fff}
-.sd-header .back{font-size:20px;cursor:pointer;padding:4px 8px 4px 0;user-select:none}
-.sd-header .sd-name{font-size:16px;font-weight:600}
-.sd-body{padding:12px 14px}
+/* ===== General ===== */
+.loading{text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px}
+.empty{text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px}
 
-/* === Parts Apply === */
-.form-group{margin-bottom:10px}
-.form-group label{display:block;font-size:12px;color:#666;margin-bottom:4px}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;color:#1a2332;background:#fff}
-.form-group textarea{height:70px;resize:none}
-.btn-primary{width:100%;padding:12px;background:#1a6dd4;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
-.btn-primary:active{background:#1558b0}
+/* ===== Login ===== */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg-primary);z-index:9999;display:flex;align-items:center;justify-content:center}
+.login-card{background:var(--bg-card);border-radius:var(--radius-lg);padding:32px 28px;width:300px;box-shadow:var(--shadow-md)}
+.login-card h2{text-align:center;color:var(--brand);font-size:20px;margin-bottom:4px}
+.login-card .lc-sub{text-align:center;color:var(--text-tertiary);font-size:13px;margin-bottom:24px}
+.login-card input{width:100%;padding:10px 14px;border:.5px solid var(--border-color);border-radius:6px;font-size:15px;margin-bottom:12px;outline:none;background:var(--bg-primary);color:var(--text-primary)}
+.login-card input:focus{border-color:var(--brand)}
+.login-card .login-btn{width:100%;padding:11px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:16px;cursor:pointer;font-weight:600;transition:background .2s}
+.login-card .login-btn:active{background:var(--brand-dark)}
+.login-card .lc-err{color:var(--danger);font-size:12px;text-align:center;margin-top:8px;display:none}
+.login-card .lc-hint{text-align:center;margin-top:16px;font-size:10px;color:var(--text-tertiary)}
 
-/* === Manuals === */
-.manual-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer}
-.manual-item .m-icon{width:36px;height:36px;border-radius:8px;background:rgba(26,109,212,0.08);display:flex;align-items:center;justify-content:center;font-size:16px;color:#1a6dd4;flex-shrink:0}
-.manual-item .m-info{flex:1}
-.manual-item .m-info .m-title{font-size:13px;color:#1a2332}
-.manual-item .m-info .m-desc{font-size:11px;color:#999;margin-top:2px}
-.manual-item .m-arrow{color:#ccc;font-size:14px}
+/* ===== Toast ===== */
+#toast{display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:9px 20px;border-radius:20px;font-size:13px;z-index:999;white-space:nowrap;backdrop-filter:blur(10px)}
 
-/* === Toast === */
-#toast{display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;max-width:380px;white-space:nowrap}
-
-.loading{display:flex;align-items:center;justify-content:center;padding:30px;color:#999;font-size:13px}
-.empty{text-align:center;padding:40px 0;color:#bbb;font-size:13px}
+/* ===== Inspection Items ===== */
+.insp-record{padding:10px 0;border-bottom:.5px solid var(--divider);font-size:12px}
+.insp-record:last-child{border-bottom:none}
 </style>
 </head>
 <body>
 <div class="app" id="app">
-  <!-- Top Bar -->
-  <div class="top-bar">
-    <div class="tb-left">
-      <span class="tb-day" id="m-day">-</span>
-      <div class="tb-date-info">
-        <span class="tb-date-str" id="m-date">-</span>
-        <span class="tb-weekday" id="m-weekday">-</span>
-        <div class="tb-weather" id="m-weather">加载中...</div>
+  <!-- Login Overlay -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-card">
+      <h2>水文运维</h2><div class="lc-sub">请登录系统</div>
+      <input id="login-username" placeholder="用户名" onkeydown="if(event.key==='Enter')doLogin()">
+      <input id="login-password" type="password" placeholder="密码" onkeydown="if(event.key==='Enter')doLogin()">
+      <div class="lc-err" id="login-err"></div>
+      <button class="login-btn" id="login-btn" onclick="doLogin()">登 录</button>
+      <div class="lc-hint">演示: admin/admin123 · zhangsan/yw123456</div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="status-bar-l"><span id="m-time">12:00</span></div>
+    <div class="status-bar-r"><span>📶</span><span>🔋</span></div>
+  </div>
+
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <span class="nav-title" id="nav-title">首页</span>
+    <div class="nav-capsule" onclick="doLogout()" title="退出登录">
+      <div class="capsule-dot"></div><div class="capsule-dot"></div><div class="capsule-dot"></div>
+    </div>
+  </div>
+
+  <!-- Scrollable Content -->
+  <div class="app-content">
+
+    <!-- ==================== PAGE: HOME ==================== -->
+    <div class="page active" id="page-home" style="flex-direction:column;gap:var(--space-lg)">
+
+      <!-- Header Area -->
+      <div class="header-area">
+        <div class="header-search-row">
+          <div class="header-avatar" id="m-avatar" onclick="doLogout()">R</div>
+          <div class="header-search"><span style="font-size:15px">🔍</span><span id="m-user-info">搜索站点...</span></div>
+        </div>
+        <div class="header-date"><span id="m-date">-</span> · <span id="m-weekday">-</span></div>
+        <div class="header-weather"><span id="m-w-text">--</span></div>
+        <div class="header-weather-row">
+          <div class="weather-icon-big" id="m-w-icon">⛅</div>
+          <div class="todo-count-wrap">
+            <span class="todo-label">今日待完成</span>
+            <span class="todo-num" id="m-task-total">-</span>
+            <span class="todo-unit">项</span>
+          </div>
+        </div>
+        <div class="todo-sub">
+          <span class="ts-alert" id="m-tc-alert">告警 -</span>
+          <span class="ts-wo" id="m-tc-wo">工单 -</span>
+          <span class="ts-insp" id="m-tc-insp">巡检 -</span>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-row">
+        <div class="quick-btn" onclick="openPartsApply()">
+          <div class="quick-folder green"></div><span class="quick-btn-label">备件申请</span>
+        </div>
+        <div class="quick-btn" onclick="openManuals()">
+          <div class="quick-folder purple"></div><span class="quick-btn-label">运维规范</span>
+        </div>
+        <div class="quick-btn" onclick="loadInspections()">
+          <div class="quick-folder"></div><span class="quick-btn-label">巡检清单</span>
+        </div>
+        <div class="quick-btn" onclick="openOrdersList()">
+          <div class="quick-folder orange"></div><span class="quick-btn-label">我的工单</span>
+        </div>
+      </div>
+
+      <!-- Segmented Control -->
+      <div class="segment-control" id="swipe-tabs">
+        <div class="seg-item active" onclick="swipeTo(0)">工单状态</div>
+        <div class="seg-item" onclick="swipeTo(1)">站点监测</div>
+        <div class="seg-item" onclick="swipeTo(2)">巡检计划</div>
+      </div>
+
+      <!-- Panels -->
+      <div class="swipe-panel active" id="swipe-panel-0"><div class="loading">加载中...</div></div>
+      <div class="swipe-panel" id="swipe-panel-1"><div class="loading">加载中...</div></div>
+      <div class="swipe-panel" id="swipe-panel-2"><div class="loading">加载中...</div></div>
+    </div>
+
+    <!-- ==================== PAGE: SITES ==================== -->
+    <div class="page" id="page-sites" style="flex-direction:column;gap:0">
+      <div class="site-tabs" id="site-tabs">
+        <div class="site-tab active" onclick="filterSiteType('')">全部</div>
+        <div class="site-tab" onclick="filterSiteType('rainfall')">雨量站</div>
+        <div class="site-tab" onclick="filterSiteType('water_level')">水位站</div>
+        <div class="site-tab" onclick="filterSiteType('hydrology')">水文站</div>
+        <div class="site-tab" onclick="filterSiteType('soil_moisture')">墒情站</div>
+        <div class="site-tab" onclick="filterSiteType('evaporation')">蒸发站</div>
+      </div>
+      <div class="si-filter"><input id="si-filter-inp" placeholder="搜索站点名称/编码..." oninput="filterSites()"></div>
+      <div id="site-list"><div class="loading">加载中...</div></div>
+    </div>
+
+    <!-- ==================== PAGE: ALERTS ==================== -->
+    <div class="page" id="page-alerts" style="flex-direction:column;gap:0">
+      <div class="si-filter" style="padding-top:var(--space-sm)">
+        <input id="al-filter-inp" placeholder="搜索预警信息..." oninput="filterAlerts()">
+      </div>
+      <div class="batch-bar" id="batch-bar" style="display:none">
+        <span id="batch-count">已选 0 项</span>
+        <button onclick="batchResolve()">批量办结</button>
+        <button class="batch-primary" onclick="batchConvert()">批量转工单</button>
+        <button onclick="batchClear()">取消</button>
+      </div>
+      <div id="alerts-list"><div class="loading">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- TabBar -->
+  <div class="tabbar" id="bottom-nav">
+    <div class="tab-item active" id="bn-home" onclick="switchTab('home')"><div class="tab-icon">⭐</div><span class="tab-label">首页</span></div>
+    <div class="tab-item" id="bn-sites" onclick="switchTab('sites')"><div class="tab-icon">⚙️</div><span class="tab-label">站点管理</span></div>
+    <div class="tab-item" id="bn-alerts" onclick="switchTab('alerts')"><div class="tab-icon">⚠️</div><span class="tab-label">预警中心</span></div>
+  </div>
+
+  <!-- ==================== OVERLAYS ==================== -->
+
+  <!-- Site Detail -->
+  <div class="inline-view" id="site-detail">
+    <div class="iv-header">
+      <span class="back" onclick="closeSiteDetail()">←</span>
+      <span class="iv-title" id="sd-name">-</span>
+      <span class="iv-header-extra" onclick="navigateToSite()">🧭 导航</span>
+    </div>
+    <div class="sd-subtabs">
+      <div class="sd-subtab active" onclick="switchSdTab(0)">设备运行</div>
+      <div class="sd-subtab" onclick="switchSdTab(1)">巡检计划</div>
+    </div>
+    <div class="sd-panel active" id="sd-panel-0"><div class="loading">加载中...</div></div>
+    <div class="sd-panel" id="sd-panel-1"><div class="loading">加载中...</div></div>
+  </div>
+
+  <!-- Alert Detail -->
+  <div class="inline-view" id="alert-detail">
+    <div class="iv-header"><span class="back" onclick="closeAlertDetail()">←</span><span class="iv-title">预警详情</span></div>
+    <div class="iv-body" id="alert-detail-body"><div class="loading">加载中...</div></div>
+  </div>
+
+  <!-- Work Order Detail -->
+  <div class="inline-view" id="wo-detail">
+    <div class="iv-header"><span class="back" onclick="closeView('wo-detail')">←</span><span class="iv-title" id="wo-detail-title">工单详情</span></div>
+    <div class="iv-body" id="wo-detail-body"><div class="loading">加载中...</div></div>
+  </div>
+
+  <!-- Inspection Checklist -->
+  <div class="inline-view" id="insp-checklist">
+    <div class="iv-header"><span class="back" onclick="closeView('insp-checklist')">←</span><span class="iv-title" id="insp-title">巡检清单</span></div>
+    <div class="iv-body" id="insp-checklist-body"><div class="loading">加载中...</div></div>
+  </div>
+
+  <!-- New Inspection -->
+  <div class="inline-view" id="new-inspection">
+    <div class="iv-header"><span class="back" onclick="closeView('new-inspection')">←</span><span class="iv-title">新建巡检</span></div>
+    <div class="iv-body" id="new-inspection-body"></div>
+  </div>
+
+  <!-- Parts Apply -->
+  <div class="inline-view" id="parts-apply">
+    <div class="iv-header"><span class="back" onclick="closeView('parts-apply')">←</span><span class="iv-title">备件申请</span></div>
+    <div class="iv-body">
+      <div class="iv-card">
+        <div class="form-group"><label>站点</label><select id="parts-site"><option>选择站点</option></select></div>
+        <div class="form-group"><label>名称</label><input id="parts-name" placeholder="备件名称"></div>
+        <div class="form-group"><label>数量</label><input id="parts-qty" type="number" value="1"></div>
+        <div class="form-group"><label>原因</label><textarea id="parts-reason" placeholder="简述原因..."></textarea></div>
+        <button class="btn-primary" onclick="submitParts()">提交</button>
       </div>
     </div>
-    <div class="tb-right">
-      <div class="tb-search" onclick="openSearch()">&#128269; 搜索站点</div>
-      <div class="tb-avatar">R</div>
-    </div>
   </div>
 
-  <!-- Task Counter -->
-  <div class="task-counter">
-    <div class="tc-row">
-      <span class="tc-big" id="m-task-total">-</span>
-      <span class="tc-label">今日待办</span>
-    </div>
-    <div class="tc-breakdown">
-      <span class="tc-alert" id="m-tc-alert">告警 -</span>
-      <span class="tc-wo" id="m-tc-wo">工单 -</span>
-      <span class="tc-insp" id="m-tc-insp">巡检 -</span>
-    </div>
+  <!-- Manuals -->
+  <div class="inline-view" id="manuals">
+    <div class="iv-header"><span class="back" onclick="closeView('manuals')">←</span><span class="iv-title">运维规范</span></div>
+    <div class="iv-body" id="manuals-body"></div>
   </div>
 
-  <!-- Alert Strip -->
-  <div class="alert-strip" id="alert-strip" onclick="openView('orders')">
-    <span class="as-icon">&#9888;&#65039;</span>
-    <span class="as-count" id="as-count">0条待处理告警</span>
-    <span class="as-arrow">&#8250;</span>
-  </div>
-
-  <!-- Task Feed -->
-  <div class="task-feed">
-    <div class="tf-header"><span class="tf-title">待处理任务</span><span class="tf-see-all" id="tf-see-all" style="display:none" onclick="openView('orders')">查看全部 &#8250;</span></div>
-    <div id="task-feed-list"><div class="loading">加载中...</div></div>
-  </div>
-
-  <!-- Quick Actions -->
-  <div class="quick-actions">
-    <div class="qa-item" onclick="openView('orders')"><div class="icon">&#128203;</div><span class="name">工单处理</span></div>
-    <div class="qa-item" onclick="openView('inspection')"><div class="icon">&#128269;</div><span class="name">日常巡检</span></div>
-    <div class="qa-item" onclick="openView('parts')"><div class="icon">&#128230;</div><span class="name">备件申请</span></div>
-    <div class="qa-item" onclick="openView('manual')"><div class="icon">&#128214;</div><span class="name">运维规范</span></div>
-  </div>
+  <!-- Toast -->
+  <div id="toast"></div>
 </div>
-
-<!-- ===== Inline Views ===== -->
-
-<!-- Search Overlay -->
-<div class="search-overlay" id="search-overlay">
-  <div class="so-header">
-    <span class="so-back" onclick="closeSearch()">&#8592;</span>
-    <input class="so-input" id="so-input" placeholder="搜索站点名称..." autocomplete="off" oninput="doSearch()">
-  </div>
-  <div class="so-body" id="so-body">
-    <div class="so-empty">输入关键词搜索站点</div>
-  </div>
-</div>
-
-<!-- Site Detail Overlay -->
-<div class="site-detail-overlay" id="site-detail-overlay">
-  <div class="sd-header">
-    <span class="back" onclick="closeSiteDetail()">&#8592;</span>
-    <span class="sd-name" id="sd-name">站点详情</span>
-  </div>
-  <div class="sd-body" id="sd-body"><div class="loading">加载中...</div></div>
-</div>
-
-<!-- 工单列表 -->
-<div class="inline-view" id="view-orders">
-  <div class="iv-header"><span class="back" onclick="closeView('orders')">&#8592;</span><span class="iv-title">工单处理</span></div>
-  <div class="iv-body" id="iv-orders-body"><div class="loading">加载中...</div></div>
-</div>
-
-<!-- 工单详情 -->
-<div class="inline-view" id="view-wo-detail">
-  <div class="iv-header"><span class="back" onclick="closeWoDetail()">&#8592;</span><span class="iv-title" id="wo-detail-title">工单详情</span></div>
-  <div class="iv-body" id="iv-wo-detail-body"><div class="loading">加载中...</div></div>
-</div>
-
-<!-- 巡检列表 -->
-<div class="inline-view" id="view-inspection">
-  <div class="iv-header"><span class="back" onclick="closeView('inspection')">&#8592;</span><span class="iv-title">日常巡检</span></div>
-  <div class="iv-body" id="iv-inspection-body"><div class="loading">加载中...</div></div>
-</div>
-
-<!-- 巡检清单 -->
-<div class="inline-view" id="view-insp-checklist">
-  <div class="iv-header"><span class="back" onclick="closeInspChecklist()">&#8592;</span><span class="iv-title" id="insp-title">巡检清单</span></div>
-  <div class="iv-body" id="iv-insp-checklist-body"><div class="loading">加载中...</div></div>
-</div>
-
-<!-- 备件申请 -->
-<div class="inline-view" id="view-parts">
-  <div class="iv-header"><span class="back" onclick="closeView('parts')">&#8592;</span><span class="iv-title">备件申请</span></div>
-  <div class="iv-body">
-    <div class="iv-card">
-      <div class="form-group"><label>站点名称</label><select id="parts-site"><option>选择站点</option></select></div>
-      <div class="form-group"><label>备件名称</label><input id="parts-name" placeholder="如：雨量传感器、水位计..."></div>
-      <div class="form-group"><label>申请数量</label><input id="parts-qty" type="number" placeholder="1" value="1"></div>
-      <div class="form-group"><label>申请原因</label><textarea id="parts-reason" placeholder="请简述申请原因..."></textarea></div>
-      <button class="btn-primary" onclick="submitParts()">提交申请</button>
-    </div>
-  </div>
-</div>
-
-<!-- 运维规范 -->
-<div class="inline-view" id="view-manual">
-  <div class="iv-header"><span class="back" onclick="closeView('manual')">&#8592;</span><span class="iv-title">运维规范</span></div>
-  <div class="iv-body" id="iv-manual-body"></div>
-</div>
-
-<!-- Toast -->
-<div id="toast"></div>
 
 <script>
+window.onerror=function(msg,src,line,col,err){
+  var el=document.getElementById('login-err');
+  if(el){el.textContent='JS错误: '+(msg||'')+' ('+line+':'+col+')';el.style.display='block';el.style.color='var(--danger)'}
+};
+
 var API='/api';
 var TM={rainfall:'雨量站',water_level:'水位站',hydrology:'水文站',soil_moisture:'墒情站',evaporation:'蒸发站'};
-async function af(path){try{var r=await fetch(API+path,{signal:AbortSignal.timeout(8000)});return await r.json()}catch(e){return null}}
+var MCN={precipitation:'降雨量(mm/h)',cumulative_rainfall:'累计降雨量(mm)',water_level:'水位(m)',flow_rate:'流量(m³/s)',temperature:'温度(°C)',humidity:'湿度(%)',soil_moisture:'土壤含水量(%)',evaporation:'蒸发量(mm)',pressure:'压力(MPa)',vibration:'振动(mm/s)',battery:'电池电量(V)',signal_strength:'信号强度(dBm)'};
+function _mcn(key){return MCN[key]||key}
+var SM={pending:'待受理',accepted:'已受理',in_progress:'处置中',closed:'已关闭'};
+var WO_PCT={pending:0,accepted:33,in_progress:66,closed:100};
+var OB={pending:'#999',accepted:'#07C160',in_progress:'#07C160',closed:'#999'};
+var SB_CLASS={pending:'sb-pending',accepted:'sb-process',in_progress:'sb-process',closed:'sb-done'};
 
-function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(function(){t.style.display='none'},2000)}
-
-// ===== Date & Weather =====
-function updateDateTime(){
-  var d=new Date(),days=['日','一','二','三','四','五','六'];
-  document.getElementById('m-day').textContent=d.getDate();
-  document.getElementById('m-date').textContent=d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0');
-  document.getElementById('m-weekday').textContent='周'+days[d.getDay()];
-}
-async function updateWeather(){
-  var w=await af('/weather');
-  if(w&&w.current){var t=w.current.temperature||'--';var d=w.current.weather_desc||w.current.weather_type||'';document.getElementById('m-weather').innerHTML=d+' '+t+'°C'}
-}
-
-// ===== Task Counter =====
-async function updateTaskCounter(){
-  var alertStat,woStat,inspStat;
+// ===== Auth =====
+var _token='',_user=null;
+try{_token=localStorage.getItem('water_ops_token')||''}catch(e){}
+function _authHdrs(){var h={};if(_token)h['Authorization']='Bearer '+_token;return h}
+function showLogin(){var el=document.getElementById('login-overlay');if(el)el.style.display='flex'}
+function hideLogin(){var el=document.getElementById('login-overlay');if(el)el.style.display='none'}
+function _loginErr(msg){var el=document.getElementById('login-err');if(el){el.textContent=msg;el.style.display='block'}}
+async function doLogin(){
+  var uEl=document.getElementById('login-username'),pEl=document.getElementById('login-password');
+  if(!uEl||!pEl){alert('页面加载异常，请刷新重试');return}
+  var u=uEl.value.trim(),p=pEl.value.trim();
+  if(!u||!p){_loginErr('请输入用户名和密码');return}
+  var btn=document.getElementById('login-btn');btn.disabled=true;btn.textContent='登录中...';
   try{
-    var r1=await af('/alerts/statistics?status=pending');
-    var r2=await af('/workorders/statistics');
-    var r3=await af('/inspections/statistics');
-    alertStat=r1;woStat=r2;inspStat=r3;
-  }catch(e){}
-
-  var aCount=alertStat&&alertStat.by_status?alertStat.by_status.pending||0:0;
-  var woActive=woStat?((woStat.by_status.pending||0)+(woStat.by_status.accepted||0)+(woStat.by_status.generated||0)+(woStat.by_status.dispatched||0)+(woStat.by_status.in_progress||0)+(woStat.by_status.reviewing||0)+(woStat.by_status.acceptance||0)):0;
-  var inspPending=inspStat?((inspStat.total_plans||0)-(inspStat.completed_plans||0)):0;
-  var total=aCount+woActive+inspPending;
-
-  document.getElementById('m-task-total').textContent=total||'0';
-  document.getElementById('m-tc-alert').textContent='告警 '+aCount;
-  document.getElementById('m-tc-wo').textContent='工单 '+woActive;
-  document.getElementById('m-tc-insp').textContent='巡检 '+inspPending;
-
-  // Alert strip
-  var as=document.getElementById('alert-strip');
-  if(aCount>0){as.classList.add('show');document.getElementById('as-count').textContent=aCount+'条待处理告警'}
-  else as.classList.remove('show');
+    var r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    var d=await r.json();
+    if(d.success){_token=d.token;_user=d.user;try{localStorage.setItem('water_ops_token',_token)}catch(e){}hideLogin();
+      var av=document.getElementById('m-avatar');if(av)av.textContent=d.user.real_name.charAt(0);
+      var ui=document.getElementById('m-user-info');if(ui)ui.textContent=d.user.real_name+' · '+d.user.role;
+      init();}
+    else{_loginErr(d.error||'登录失败，请检查账号密码')}
+  }catch(e){_loginErr('网络错误，请检查服务器连接');console.error(e)}
+  btn.disabled=false;btn.textContent='登 录';
+}
+function doLogout(){_token='';_user=null;try{localStorage.removeItem('water_ops_token')}catch(e){}showLogin();
+  var av=document.getElementById('m-avatar');if(av)av.textContent='R';
+  var ui=document.getElementById('m-user-info');if(ui)ui.textContent='搜索站点...';}
+async function checkAuth(){
+  if(!_token){showLogin();return false}
+  try{var r=await fetch(API+'/auth/me',{headers:Object.assign({'Content-Type':'application/json'},_authHdrs())});if(!r.ok){_token='';try{localStorage.removeItem('water_ops_token')}catch(e){}showLogin();return false}
+  var d=await r.json();
+  if(d.success){_user=d.user;hideLogin();var av=document.getElementById('m-avatar');if(av)av.textContent=d.user.real_name.charAt(0);
+    var ui=document.getElementById('m-user-info');if(ui)ui.textContent=d.user.real_name+' · '+d.user.role;return true}
+  _token='';showLogin();return false}catch(e){return false}
 }
 
-// ===== Task Feed =====
-async function loadTaskFeed(){
-  var wo, alerts, insp;
-  try{
-    var r1=await af('/workorders?limit=20');
-    var r2=await af('/alerts?status=pending&limit=10');
-    var r3=await af('/inspections');
-    wo=r1;alerts=r2;insp=r3;
-  }catch(e){}
+// ===== API =====
+async function af(url){try{var r=await fetch(API+url,{headers:_authHdrs()});if(r.status===401){_token='';try{localStorage.removeItem('water_ops_token')}catch(e){}showLogin();return null}var ct=r.headers.get('content-type')||'';if(ct.includes('application/json')){return await r.json()}var txt=await r.text();return r.ok?[]:null}catch(e){console.error('af:',url,e);return null}}
+async function afP(url,d){try{var r=await fetch(API+url,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(d)});if(r.status===401){_token='';try{localStorage.removeItem('water_ops_token')}catch(e){}showLogin();return{error:'auth'}}var ct=r.headers.get('content-type')||'';if(ct.includes('application/json')){return await r.json()}var txt=await r.text();return{success:r.ok,error:r.ok?null:txt.substring(0,100)}}catch(e){console.error('afP:',url,e);return{error:String(e)}}}
+async function afPt(url,d){try{var r=await fetch(API+url,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(d)});if(r.status===401){_token='';try{localStorage.removeItem('water_ops_token')}catch(e){}showLogin();return{error:'auth'}}var ct=r.headers.get('content-type')||'';if(ct.includes('application/json')){return await r.json()}var txt=await r.text();return{success:r.ok,error:r.ok?null:txt.substring(0,100)}}catch(e){console.error('afPt:',url,e);return{error:String(e)}}}
+function showToast(msg){var t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.style.display='block';setTimeout(function(){t.style.display='none'},2000)}
 
-  var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
-  var html='',itemCount=0;
-
-  // Alerts
-  if(alerts&&alerts.length){
-    var topA=alerts.sort(function(a,b){var o={red:3,orange:2,yellow:1};return(o[b.level]||0)-(o[a.level]||0)}).slice(0,3);
-    for(var i=0;i<topA.length;i++){var a=topA[i];html+='<div class="tf-item" onclick="openView(\'orders\')"><span class="tf-dot w-red"></span><div class="tf-info"><div class="tf-title-line">'+a.site_name+'</div><div class="tf-sub">'+a.message+'</div></div><span class="tf-badge bg-urgent">告警</span></div>';itemCount++}
-  }
-
-  // Work orders
-  if(wo&&wo.length){
-    var active=wo.filter(function(x){return x.status!=='closed'}).slice(0,5);
-    for(var j=0;j<active.length;j++){var w=active[j];var clsBg=w.status==='pending'?'bg-pending':'bg-active';html+='<div class="tf-item" onclick="openWoDetail(\''+w.order_no+'\')"><span class="tf-dot w-blue"></span><div class="tf-info"><div class="tf-title-line">'+w.title+'</div><div class="tf-sub">'+w.site_name+' · '+(SM[w.status]||w.status)+'</div></div><span class="tf-badge '+clsBg+'">'+(SM[w.status]||w.status)+'</span></div>';itemCount++}
-  }
-
-  // Inspections
-  if(insp&&insp.length){
-    var pendingInsp=insp.filter(function(x){return x.status!=='completed'}).slice(0,3);
-    for(var k=0;k<pendingInsp.length;k++){var p=pendingInsp[k],done=p.completed_items||0,allT=p.total_items||0;html+='<div class="tf-item" onclick="openInspChecklist('+p.id+')"><span class="tf-dot w-green"></span><div class="tf-info"><div class="tf-title-line">'+(p.plan_name||'')+'</div><div class="tf-sub">'+(p.site_name||'')+' · '+(done)+'/'+allT+'项</div></div><span class="tf-badge bg-active">'+done+'/'+allT+'</span></div>';itemCount++}
-  }
-
-  if(!html)html='<div class="tf-empty">暂无待处理任务 &#127881;</div>';
-  document.getElementById('task-feed-list').innerHTML=html;
-  document.getElementById('tf-see-all').style.display=itemCount>5?'inline':'none';
-}
-
-// ===== Inline View Management =====
-function openView(name){
-  if(name==='orders')loadOrdersList();
-  else if(name==='inspection')loadInspectionsList();
-  else if(name==='manual')showManual();
-  else if(name==='parts')loadPartsSites();
-  document.getElementById('view-'+name).classList.add('open');
-}
-function closeView(name){document.getElementById('view-'+name).classList.remove('open')}
-
-// ===== Search =====
-var allSites=[];
-async function loadSitesForSearch(){
-  var s=await af('/sites');
-  if(s)allSites=s;
-}
-function openSearch(){
-  document.getElementById('search-overlay').classList.add('open');
-  document.getElementById('so-input').value='';
-  document.getElementById('so-input').focus();
-  doSearch();
-}
-function closeSearch(){document.getElementById('search-overlay').classList.remove('open')}
-function doSearch(){
-  var q=document.getElementById('so-input').value.trim().toLowerCase();
-  var filtered=q?allSites.filter(function(s){return s.name.toLowerCase().includes(q)||s.code.toLowerCase().includes(q)||(s.district||'').toLowerCase().includes(q)||(s.river||'').toLowerCase().includes(q)}).slice(0,20):allSites.slice(0,20);
-  var html='';
-  if(!filtered.length){html='<div class="so-empty">'+(q?'未找到匹配站点':'输入关键词搜索站点')+'</div>'}
-  else for(var i=0;i<filtered.length;i++){var s=filtered[i];html+='<div class="so-result" onclick="showSiteDetail('+s.id+')"><span class="sr-dot '+(s.status||'online')+'"></span><div class="sr-info"><div class="sr-name">'+s.name+'</div><div class="sr-meta">'+(TM[s.type]||s.type)+' · '+(s.district||'')+'</div></div></div>'}
-  document.getElementById('so-body').innerHTML=html;
-}
-
-// ===== Site Detail =====
-async function showSiteDetail(siteId){
-  closeSearch();
-  var s=allSites.find(function(x){return x.id===siteId});
-  if(!s){showToast('站点数据未找到');return}
-  document.getElementById('site-detail-overlay').classList.add('open');
-  document.getElementById('sd-name').textContent=s.name;
-  document.getElementById('sd-body').innerHTML='<div class="loading">加载中...</div>';
-  var d=await af('/data/site/'+siteId+'?limit=24');
-  var rt=await af('/data/realtime');
-  var rv=null;if(rt)rv=rt.find(function(x){return x.id===siteId});
-  var v=rv?rv.latest_value:'--',u=rv?rv.latest_unit||'':'';
-
-  var html='<div class="iv-card">';
-  html+='<div style="font-size:11px;color:#999;margin-bottom:4px">'+(TM[s.type]||s.type)+' · '+s.code+'</div>';
-  html+='<div style="font-size:11px;color:#666">'+s.district+' '+s.river+'</div>';
-  if(rv){html+='<div style="margin-top:10px;display:flex;align-items:baseline;gap:6px"><span style="font-size:28px;font-weight:700;color:'+(s.status==='offline'?'#f5a623':'#1a6dd4')+'">'+v+'</span><span style="font-size:12px;color:#999">'+u+'</span></div>';
-  html+='<div style="font-size:11px;color:#999;margin-top:2px">'+(rv.latest_metric||'')+' · '+(rv.latest_time||'').substring(0,16)+'</div>'}
-  html+='<div style="margin-top:8px"><span style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+(s.status==='offline'?'rgba(245,166,35,0.1)':'rgba(46,160,128,0.1)')+';color:'+(s.status==='offline'?'#f5a623':'#2ea080')+'">'+(s.status==='online'?'在线':'离线')+'</span></div>';
-  html+='</div>';
-
-  if(d&&d.length){
-    html+='<div class="iv-card"><div style="font-size:13px;font-weight:600;color:#1a2332;margin-bottom:8px">最近24小时数据</div>';
-    html+='<div style="max-height:200px;overflow-y:auto">';
-    for(var i=0;i<Math.min(d.length,24);i++){var r=d[i];html+='<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #f8f8f8"><span style="color:#666">'+(r.recorded_at||'').substring(5,16)+'</span><span style="color:#1a2332">'+r.value+' '+r.unit+'</span></div>'}
-    html+='</div></div>';
-  }
-  document.getElementById('sd-body').innerHTML=html;
-}
-function closeSiteDetail(){document.getElementById('site-detail-overlay').classList.remove('open')}
-
-// ===== Work Orders =====
-var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
-var SC={pending:'#999',accepted:'#2ea080',generated:'#1a6dd4',dispatched:'#f5a623',in_progress:'#2ea080',reviewing:'#1a6dd4',acceptance:'#f5a623',closed:'#999'};
-var currentOrderNo=null;
-
-async function loadOrdersList(){
-  var o=await af('/workorders?limit=50');
-  var html='';
-  if(o&&o.length){
-    var active=o.filter(function(x){return x.status!=='closed'});
-    var closed=o.filter(function(x){return x.status==='closed'});
-    var sorted=active.concat(closed.slice(0,5));
-    for(var i=0;i<sorted.length;i++){var w=sorted[i],s=w.status||'pending';html+='<div class="iv-card" onclick="openWoDetail(\''+w.order_no+'\')"><div style="font-size:10px;color:#1a6dd4;margin-bottom:4px;font-family:monospace">'+(w.order_no||'')+'</div><div style="font-size:14px;color:#1a2332;margin-bottom:4px">'+(w.title||'')+'</div><div style="font-size:11px;color:#999">'+w.site_name+' · '+(SM[s]||s)+(w.assignee?' · '+w.assignee:'')+'</div></div>'}
-    if(!html)html='<div class="empty">暂无工单</div>';
-  }else html='<div class="empty">暂无工单</div>';
-  document.getElementById('iv-orders-body').innerHTML=html;
-}
-
-async function openWoDetail(orderNo){
-  currentOrderNo=orderNo;
-  document.getElementById('view-orders').classList.remove('open');
-  document.getElementById('wo-detail-title').textContent='工单 '+orderNo;
-  document.getElementById('view-wo-detail').classList.add('open');
-  document.getElementById('iv-wo-detail-body').innerHTML='<div class="loading">加载中...</div>';
-
-  var all=await af('/workorders?limit=100');
-  var w=all?all.find(function(x){return x.order_no===orderNo}):null;
-  if(!w){document.getElementById('iv-wo-detail-body').innerHTML='<div class="empty">工单不存在</div>';return}
-
-  var s=w.status||'pending';
-  var html='<div class="iv-card wo-detail">';
-  html+='<div class="wo-no">'+w.order_no+'</div>';
-  html+='<div class="wo-title">'+w.title+'</div>';
-  html+='<div class="wo-meta">';
-  html+='<span class="tag'+(w.level==='critical'?' urgent':'')+'">'+(w.level==='critical'?'紧急':w.level==='urgent'?'重要':'常规')+'</span>';
-  html+='<span class="tag">'+w.site_name+'</span>';
-  html+='<span class="tag">'+w.source+'</span>';
-  html+='</div>';
-  if(w.description)html+='<div class="wo-desc">'+w.description+'</div>';
-  if(w.assignee)html+='<div style="font-size:11px;color:#999;margin-bottom:6px">责任人: '+w.assignee+'</div>';
-  if(w.sla_deadline)html+='<div style="font-size:11px;color:'+(new Date(w.sla_deadline)<new Date()?'#e94560':'#999')+';margin-bottom:10px">SLA截止: '+w.sla_deadline.substring(0,16)+'</div>';
-
-  // Status badge
-  html+='<div style="margin-bottom:12px"><span style="font-size:11px;padding:3px 10px;border-radius:10px;background:'+(SC[s]||'#999')+'20;color:'+(SC[s]||'#999')+'">'+(SM[s]||s)+'</span></div>';
-
-  // Action buttons
-  html+='<div class="wo-actions">';
-  var actions=getWoActions(s);
-  for(var i=0;i<actions.length;i++){var a=actions[i];html+='<button class="'+a.cls+'" onclick="'+a.fn+'">'+a.label+'</button>'}
-  html+='</div>';
-
-  if(s==='closed')html+='<div style="font-size:11px;color:#2ea080;margin-top:10px">此工单已完成 '+(w.resolved_at||'')+'</div>';
-  html+='</div>';
-  document.getElementById('iv-wo-detail-body').innerHTML=html;
-}
-
-function getWoActions(status){
-  var acts={
-    pending:[{label:'受理工单',cls:'btn-accept',fn:'doWoAction("accepted")'}],
-    accepted:[{label:'生成方案',cls:'btn-accept',fn:'doWoAction("generated")'},{label:'关闭工单',cls:'btn-close',fn:'doWoAction("closed")'}],
-    generated:[{label:'派发工单',cls:'btn-accept',fn:'doWoAction("dispatched")'}],
-    dispatched:[{label:'开始处置',cls:'btn-process',fn:'doWoAction("in_progress")'}],
-    in_progress:[{label:'提交审核',cls:'btn-process',fn:'doWoAction("reviewing")'}],
-    reviewing:[{label:'进入验收',cls:'btn-accept',fn:'doWoAction("acceptance")'}],
-    acceptance:[{label:'关闭工单',cls:'btn-process',fn:'doWoAction("closed")'}],
-    closed:[]
-  };
-  return acts[status]||[];
-}
-
-async function doWoAction(newStatus){
-  if(!currentOrderNo)return;
-  try{
-    var r=await fetch(API+'/workorders/'+currentOrderNo+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:newStatus})});
-    var j=await r.json();
-    if(j.success||!j.error){showToast('操作成功');closeWoDetail();updateTaskCounter();loadTaskFeed()}
-    else showToast('操作失败: '+(j.error||''));
-  }catch(e){showToast('网络错误')}
-}
-
-function closeWoDetail(){
-  document.getElementById('view-wo-detail').classList.remove('open');
-  currentOrderNo=null;
-}
-
-// ===== Inspections =====
-var insTaskData={};
-
-async function loadInspectionsList(){
-  var all=await af('/inspections');
-  var html='';
-  if(all&&all.length){
-    var pending=all.filter(function(x){return x.status!=='completed'});
-    if(pending.length){
-      for(var i=0;i<pending.length;i++){var t=pending[i],done=t.completed_items||0,allT=t.total_items||0,pct=allT?Math.round(done/allT*100):0;html+='<div class="iv-card" onclick="openInspChecklist('+t.id+')"><div style="font-size:13px;color:#1a2332;margin-bottom:4px;font-weight:500">'+(t.plan_name||'巡检计划')+'</div><div style="font-size:11px;color:#999;margin-bottom:8px">'+(t.site_name||'')+' · '+(t.start_date||'')+' ~ '+(t.end_date||'')+'</div><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:#2ea080;border-radius:3px"></div></div><span style="font-size:10px;color:#666">'+done+'/'+allT+'</span></div></div>'}
-      if(!html)html='<div class="empty">巡检任务已完成</div>';
-    }else html='<div class="empty">暂无待巡检任务</div>';
-  }else html='<div class="empty">暂无巡检计划</div>';
-  document.getElementById('iv-inspection-body').innerHTML=html;
-}
-
-async function openInspChecklist(planId){
-  document.getElementById('view-inspection').classList.remove('open');
-  document.getElementById('view-insp-checklist').classList.add('open');
-  document.getElementById('iv-insp-checklist-body').innerHTML='<div class="loading">加载中...</div>';
-
-  var allPlans=await af('/inspections');
-  var plan=allPlans?allPlans.find(function(x){return x.id===planId}):null;
-  var tasks=await af('/inspections/'+planId+'/tasks');
-  if(!plan||!tasks){document.getElementById('iv-insp-checklist-body').innerHTML='<div class="empty">数据加载失败</div>';return}
-
-  insTaskData[planId]=tasks;
-  document.getElementById('insp-title').textContent=plan.plan_name||'巡检清单';
-  var doneCount=tasks.filter(function(x){return x.result}).length;
-  var total=tasks.length,pct=total?Math.round(doneCount/total*100):0;
-
-  var html='<div class="iv-card"><div class="insp-header"><div class="insp-name">'+(plan.plan_name||'')+'</div><div class="insp-meta">'+(plan.site_name||'')+' · '+(plan.start_date||'')+' ~ '+(plan.end_date||'')+'</div></div><div class="insp-progress"><div class="insp-bar"><div class="insp-bar-fill" id="insp-bar-'+planId+'" style="width:'+pct+'%"></div></div><span class="insp-progress-text" id="insp-prog-'+planId+'">'+doneCount+'/'+total+' ('+pct+'%)</span></div></div>';
-
-  html+='<div class="iv-card">';
-  for(var i=0;i<tasks.length;i++){var t=tasks[i],done=!!t.result,isAb=t.result==='abnormal';html+='<div class="ck-item" id="ck-item-'+t.id+'"><span class="ck-no '+(done?(isAb?'abnormal':'normal'):'todo')+'">'+(done?(isAb?'✕':'✓'):(i+1))+'</span><div class="ck-info"><div class="ck-name">'+t.check_item+'</div>'+(t.remark?'<div class="ck-remark">'+t.remark+'</div>':'')+'</div>'+(!done?'<div class="ck-btns"><button class="btn-ok" onclick="checkItem('+t.id+',\'normal\')">正常</button><button class="btn-ng" onclick="checkItem('+t.id+',\'abnormal\')">异常</button></div>':'<span class="ck-done-label">'+(isAb?'异常':'正常')+'</span>')+'</div>'}
-  html+='</div>';
-
-  document.getElementById('iv-insp-checklist-body').innerHTML=html;
-}
-
-async function checkItem(taskId,result){
-  try{
-    var now=new Date().toISOString().replace('T',' ').substring(0,19);
-    var r=await fetch(API+'/inspections/tasks/'+taskId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({result:result,check_time:now})});
-    var j=await r.json();
-    if(j.success||!j.error){
-      showToast(result==='normal'?'已标记正常':'已标记异常');
-      // Update UI inline
-      var el=document.getElementById('ck-item-'+taskId);
-      if(el){
-        var noEl=el.querySelector('.ck-no');
-        noEl.className='ck-no '+(result==='normal'?'normal':'abnormal');
-        noEl.textContent=result==='normal'?'✓':'✕';
-        var btns=el.querySelector('.ck-btns');
-        if(btns)btns.outerHTML='<span class="ck-done-label">'+(result==='abnormal'?'异常':'正常')+'</span>';
-      }
-      updateTaskCounter();loadTaskFeed();
-    }else showToast('操作失败');
-  }catch(e){showToast('网络错误')}
-}
-
-function closeInspChecklist(){
-  document.getElementById('view-insp-checklist').classList.remove('open');
-}
-
-// ===== Parts Application =====
-async function loadPartsSites(){
-  var s=await af('/sites');
-  var sel=document.getElementById('parts-site');
-  if(s&&s.length){sel.innerHTML='';for(var i=0;i<s.length;i++){sel.innerHTML+='<option value="'+s[i].name+'">'+s[i].name+'</option>'}}
-}
-function submitParts(){
-  showToast('申请已提交（演示模式）');
-  setTimeout(function(){closeView('parts')},1000);
-}
-
-// ===== Manuals =====
-function showManual(){
-  var manuals=[
-    {title:'水文监测设备运维手册',cat:'设备操作'},
-    {title:'在线监测系统故障排查指南',cat:'故障处理'},
-    {title:'雨量站巡检操作规程',cat:'巡检规范'},
-    {title:'水位计校准标准流程',cat:'校准规范'},
-    {title:'数据传输异常处理方案',cat:'故障处理'},
-    {title:'汛期值班工作制度',cat:'制度规范'},
-    {title:'安全生产工作流程',cat:'安全规范'},
-    {title:'备品备件管理制度',cat:'仓库管理'}
-  ];
-  var html='';
-  for(var i=0;i<manuals.length;i++){var m=manuals[i];html+='<div class="manual-item"><div class="m-icon">&#128196;</div><div class="m-info"><div class="m-title">'+m.title+'</div><div class="m-desc">'+m.cat+'</div></div><div class="m-arrow">&#8250;</div></div>'}
-  document.getElementById('iv-manual-body').innerHTML=html;
-}
+// ===== State =====
+var allSites=[],allWO=[],allAlerts=[],allInsp=[],pinnedSites=JSON.parse(localStorage.getItem('pinned_sites')||'[]');
+var currentSiteId=null,currentAlertId=null,currentOrderNo=null,inspData={},_selectedAlerts={},_woBusy=false;
 
 // ===== Init =====
 async function init(){
-  updateDateTime();
-  updateWeather();
-  await loadSitesForSearch();
-  await updateTaskCounter();
-  await loadTaskFeed();
-  setInterval(function(){updateDateTime();updateTaskCounter();loadTaskFeed()},30000);
+  updateDateTime();updateWeather();
+  allSites=await af('/sites')||[];
+  allWO=await af('/workorders?limit=50')||[];
+  allAlerts=await af('/alerts?status=pending&limit=100')||[];
+  allInsp=await af('/inspections')||[];
+  updateTaskCounter();renderHome();
+  setInterval(function(){updateDateTime();refreshData()},30000);
 }
-init();
+async function refreshData(){
+  allSites=await af('/sites')||[];
+  allWO=await af('/workorders?limit=50')||[];
+  allAlerts=await af('/alerts?status=pending&limit=100')||[];
+  allInsp=await af('/inspections')||[];
+  updateTaskCounter();renderHome();
+}
+function updateDateTime(){
+  var d=new Date(),days=['日','一','二','三','四','五','六'];
+  var timeEl=document.getElementById('m-time');if(timeEl)timeEl.textContent=d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  var dateEl=document.getElementById('m-date');if(dateEl)dateEl.textContent=d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0');
+  var wkEl=document.getElementById('m-weekday');if(wkEl)wkEl.textContent='周'+days[d.getDay()];
+}
+async function updateWeather(){
+  var iconEl=document.getElementById('m-w-icon'),txtEl=document.getElementById('m-w-text');
+  if(txtEl)txtEl.textContent='多云/小雨';
+  if(iconEl)iconEl.textContent='⛅';
+}
+
+// ===== Navigation =====
+function switchTab(tab){
+  document.querySelectorAll('.tab-item').forEach(function(e){e.classList.remove('active')});
+  var btn=document.getElementById('bn-'+tab);if(btn)btn.classList.add('active');
+  document.querySelectorAll('.page').forEach(function(e){e.classList.remove('active')});
+  var pg=document.getElementById('page-'+tab);if(pg)pg.classList.add('active');
+  var nt=document.getElementById('nav-title');
+  if(nt){if(tab==='home')nt.textContent='首页';else if(tab==='sites')nt.textContent='站点管理';else nt.textContent='预警中心'}
+  if(tab==='sites')renderSiteList();else if(tab==='alerts')renderAlertList();
+}
+
+// ===== Task Counter =====
+function updateTaskCounter(){
+  var aCount=allAlerts.length,woActive=0,inspPending=0,expiringSoon=0,now=new Date();
+  for(var i=0;i<allWO.length;i++){if(allWO[i].status!=='closed')woActive++}
+  for(var i=0;i<allInsp.length;i++){
+    if(allInsp[i].status!=='completed'){
+      inspPending++;
+      if(allInsp[i].end_date){var ed=new Date(allInsp[i].end_date.replace(/-/g,'/'));if(ed>now&&(ed-now)/(24*3600000)<=3)expiringSoon++}
+    }
+  }
+  var total=aCount+woActive+inspPending;
+  var tt=document.getElementById('m-task-total');if(tt)tt.textContent=total||'0';
+  var ta=document.getElementById('m-tc-alert');if(ta)ta.textContent='告警 '+aCount+(expiringSoon?' · '+expiringSoon+'项到期':'');
+  var tw=document.getElementById('m-tc-wo');if(tw)tw.textContent='工单 '+woActive;
+  var ti=document.getElementById('m-tc-insp');if(ti)ti.textContent='巡检 '+inspPending;
+}
+
+// ===== Swipe Panels =====
+function swipeTo(i){
+  document.querySelectorAll('.seg-item').forEach(function(e){e.classList.remove('active')});
+  document.querySelectorAll('.swipe-panel').forEach(function(e){e.classList.remove('active')});
+  document.getElementById('swipe-panel-'+i).classList.add('active');
+  var segs=document.querySelectorAll('.seg-item');if(segs[i])segs[i].classList.add('active');
+  renderHome();
+}
+function renderHome(){renderWOPanel();renderSitePanel();renderInspPlanPanel();}
+
+// Panel 0: Work Orders (WeUI cards)
+function renderWOPanel(){
+  var active=[];for(var i=0;i<allWO.length;i++){if(allWO[i].status!=='closed')active.push(allWO[i])}
+  active.sort(function(a,b){return WO_PCT[b.status]-WO_PCT[a.status]});
+  var html='';
+  if(!active.length){html='<div class="empty">暂无进行中工单</div>'}
+  else for(var j=0;j<Math.min(active.length,10);j++){
+    var w=active[j],pct=WO_PCT[w.status]||0,sb=SB_CLASS[w.status]||'sb-pending';
+    html+='<div class="weui-card" onclick="openWoDetail(\''+w.order_no+'\')"><div class="card-header"><span class="card-title">'+w.title+'</span><span class="status-badge '+sb+'">'+(SM[w.status]||w.status)+'</span></div><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div><div class="card-sub">'+w.site_name+'</div></div>';
+  }
+  document.getElementById('swipe-panel-0').innerHTML=html;
+}
+
+// Panel 1: Site Monitor
+function renderSitePanel(){
+  var online=0,offline=0;for(var i=0;i<allSites.length;i++){if(allSites[i].status==='online')online++;else offline++}
+  var html='<div class="stats-row"><div class="stat-box"><div class="sn">'+allSites.length+'</div><div class="sl">监测站点</div></div><div class="stat-box"><div class="sn">'+online+'</div><div class="sl">在线</div></div><div class="stat-box warning"><div class="sn">'+offline+'</div><div class="sl">离线</div></div><div class="stat-box danger"><div class="sn">'+allAlerts.length+'</div><div class="sl">告警</div></div></div>';
+  var sorted=[].concat(allSites);sorted.sort(function(a,b){var ap=pinnedSites.indexOf(a.id),bp=pinnedSites.indexOf(b.id);if(ap>=0&&bp<0)return -1;if(bp>=0&&ap<0)return 1;return(a.status==='offline'?0:1)-(b.status==='offline'?0:1)});
+  if(!sorted.length)html+='<div class="empty">暂无站点数据</div>';
+  else for(var i=0;i<Math.min(sorted.length,20);i++){var s=sorted[i],pinned=pinnedSites.indexOf(s.id)>=0;html+='<div class="sm-item" onclick="showSiteDetail('+s.id+')"><span class="sm-dot '+(s.status==='online'?'dot-online':'dot-offline')+'"></span><div class="sm-info"><div class="sm-name">'+(pinned?'📌 ':'')+s.name+'</div><div class="sm-meta">'+(TM[s.type]||s.type)+' · '+s.district+'</div></div><span class="sm-pin'+(pinned?' pinned':'')+'" onclick="event.stopPropagation();togglePin('+s.id+')">📌</span></div>'}
+  document.getElementById('swipe-panel-1').innerHTML=html;
+}
+function togglePin(sid){
+  var idx=pinnedSites.indexOf(sid);
+  if(idx>=0)pinnedSites.splice(idx,1);else pinnedSites.push(sid);
+  try{localStorage.setItem('pinned_sites',JSON.stringify(pinnedSites))}catch(e){}renderSitePanel();
+}
+
+// Panel 2: Inspection Plans (three-column folding: today/week/month)
+function renderInspPlanPanel(){
+  var now=new Date(),today=now.toISOString().substring(0,10),html='';
+  var todayList=[],weekList=[],monthList=[];
+  var weekStart=new Date(now.getTime()-(now.getDay()||7)*86400000+86400000);weekStart=weekStart.toISOString().substring(0,10); // Monday
+  var monthStart=now.toISOString().substring(0,7)+'-01';
+  for(var i=0;i<allInsp.length;i++){
+    var p=allInsp[i];if(p.status==='completed')continue;
+    if(p.start_date===today)todayList.push(p);
+    else if(p.start_date>=weekStart&&p.start_date<monthStart)weekList.push(p);
+    else if(p.start_date>=monthStart)monthList.push(p);
+  }
+  html+=_foldableSection('📅 今日计划',todayList,true);
+  html+=_foldableSection('📆 本周计划',weekList,todayList.length===0);
+  html+=_foldableSection('🗓 本月计划',monthList,todayList.length===0&&weekList.length===0);
+  html+='<div class="mt-12"><button class="btn-primary" onclick="loadNewInspection()">+ 新建巡检任务</button></div>';
+  document.getElementById('swipe-panel-2').innerHTML=html||'<div class="empty">暂无待处理巡检计划</div>';
+}
+function _foldableSection(label,list,open){
+  if(!list.length)return '';
+  var html='<div class="fold-section" style="margin-bottom:8px">';
+  html+='<div class="fold-header" onclick="_toggleFold(this)" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-card);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:background .15s">';
+  html+='<span>'+label+' ('+list.length+')</span><span class="fold-arrow" style="transition:transform .2s;font-size:10px;color:var(--text-tertiary)'+(open?';transform:rotate(180deg)':'')+'">▼</span></div>';
+  html+='<div class="fold-body" style="overflow:hidden;transition:max-height .3s ease'+(open?';max-height:2000px':';max-height:0')+'">';
+  for(var j=0;j<Math.min(list.length,8);j++){
+    var p=list[j],pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
+    html+='<div class="weui-card" onclick="openInspItems('+p.id+')" style="margin-top:4px"><div class="card-header"><span class="card-title">'+p.plan_name+'</span><span class="status-badge '+(p.status==='in_progress'?'sb-process':'sb-pending')+'">'+(p.status==='in_progress'?'进行中':'待开始')+'</span></div><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div><div class="card-sub">'+p.site_name+' · '+(p.completed_items||0)+'/'+(p.total_items||0)+'项</div></div>';
+  }
+  html+='</div></div>';
+  return html;
+}
+function _toggleFold(el){
+  var body=el.nextElementSibling,arrow=el.querySelector('.fold-arrow');
+  var open=body.style.maxHeight!=='0px'&&body.style.maxHeight!=='';
+  if(open){body.style.maxHeight='0';arrow.style.transform='rotate(0deg)'}
+  else{body.style.maxHeight='2000px';arrow.style.transform='rotate(180deg)'}
+}
+
+// ===== Site List =====
+var _siteFilterType='',_siteFilterKw='';
+function filterSiteType(t){
+  _siteFilterType=t;
+  document.querySelectorAll('#site-tabs .site-tab').forEach(function(e){e.classList.remove('active')});
+  event.target.classList.add('active');renderSiteList();
+}
+function filterSites(){_siteFilterKw=document.getElementById('si-filter-inp').value.toLowerCase();renderSiteList()}
+function renderSiteList(){
+  var list=allSites;
+  if(_siteFilterType)list=list.filter(function(s){return s.type===_siteFilterType});
+  if(_siteFilterKw)list=list.filter(function(s){return s.name.toLowerCase().includes(_siteFilterKw)||s.code.toLowerCase().includes(_siteFilterKw)});
+  var html='';
+  if(!list.length)html='<div class="empty">无匹配站点</div>';
+  else for(var i=0;i<list.length;i++){var s=list[i];html+='<div class="si-item" onclick="showSiteDetail('+s.id+')"><span class="si-dot '+(s.status==='online'?'dot-online':'dot-offline')+'"></span><div class="si-info"><div class="si-name">'+s.name+'</div><div class="si-meta">'+(TM[s.type]||s.type)+' · 设备:'+(s.device_count||0)+'台</div></div><span class="si-arrow">›</span></div>'}
+  document.getElementById('site-list').innerHTML=html;
+}
+
+// ===== Site Detail =====
+var _siteDevices={},_siteInspData={};
+async function showSiteDetail(sid){
+  currentSiteId=sid;
+  var s=allSites.find(function(x){return x.id===sid});if(!s)return;
+  document.getElementById('sd-name').textContent=s.name;
+  document.getElementById('site-detail').classList.add('open');
+  switchSdTab(0);
+  var dr=await af('/sites/'+sid);
+  var ds=await af('/data/site/'+sid+'?limit=288');
+  var inspT=await af('/inspections');
+  var siteInsp=inspT?inspT.filter(function(p){return p.site_id===sid}):[];
+  _siteDevices[sid]=dr&&dr.devices?dr.devices:[];
+  _siteInspData[sid]=siteInsp;
+  // Tab 0: Devices + Data
+  var h0='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:10px;display:flex;justify-content:space-between"><span>设备运行状态</span><span style="font-weight:400;font-size:12px;color:var(--text-tertiary)">共'+(s.device_count||0)+'台</span></div>';
+  var onlineCnt=(s.device_count||0)-(s.offline_count||0);
+  h0+='<div style="display:flex;gap:8px;margin-bottom:10px"><span class="status-badge sb-process">在线: '+onlineCnt+'台</span><span class="status-badge sb-danger">离线: '+(s.offline_count||0)+'台</span></div>';
+  if(_siteDevices[sid].length){
+    for(var i=0;i<_siteDevices[sid].length;i++){
+      var dv=_siteDevices[sid][i],isOn=dv.status==='online';
+      h0+='<div class="sd-dev-item'+(isOn?'':' sd-dev-offline')+'"'+(isOn?'':' onclick="handleAbnormalDevice(\''+dv.device_name+'\',\''+dv.device_code+'\')"')+'><span class="sd-dev-name">'+dv.device_name+' <span style="color:var(--text-tertiary);font-size:10px">'+dv.device_code+'</span></span><span class="'+(isOn?'dev-status-online':'dev-status-offline')+'">'+(isOn?'🟢 在线':'🔴 离线')+'</span>';
+      h0+='</div>';
+    }
+  }else{h0+='<div class="empty" style="padding:10px">暂无设备数据</div>'}
+  h0+='</div>';
+  // Data
+  h0+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:10px">近期采集数据</div>';
+  if(ds&&ds.length){
+    var metrics={},metricKeys=[];
+    for(var i=0;i<ds.length;i++){var d=ds[i];if(!metrics[d.metric]){metrics[d.metric]=[];metricKeys.push(d.metric)}metrics[d.metric].push(d)}
+    if(metricKeys.length){
+      // Current values with trends
+      for(var k=0;k<metricKeys.length;k++){
+        var key=metricKeys[k],arr=metrics[key],latest=arr[0];
+        var val=latest.value!==undefined?latest.value:latest.val||'-';
+        var trend='';
+        if(arr.length>=2){var prevVal=parseFloat(arr[1].value||arr[1].val||0),currVal=parseFloat(val||0);
+          if(!isNaN(prevVal)&&!isNaN(currVal)){if(currVal>prevVal*1.02)trend='<span class="dm-trend up">↑</span>';else if(currVal<prevVal*0.98)trend='<span class="dm-trend down">↓</span>';else trend='<span class="dm-trend flat">→</span>'}}
+        h0+='<div class="data-metric"><div class="dm-label">'+_mcn(key)+'</div><div class="dm-value">'+val+' '+trend+'</div></div>'}
+      // Chart canvas with fixed height container
+      h0+='<div style="width:100%;height:180px;position:relative"><canvas id="data-chart" style="width:100% !important;height:180px !important"></canvas></div>';
+      // Store data for chart rendering
+      h0+='<div id="chart-data" style="display:none">'+JSON.stringify({metrics:metrics,keys:metricKeys})+ '</div>';
+          // Hourly data table (dynamic step based on data count)
+          if(metricKeys.length){
+            var tblKey=metricKeys[0],tblArr=metrics[tblKey]||[];
+            if(tblArr.length){
+              h0+='<div style="margin-top:12px;font-size:12px;font-weight:500;color:var(--text-secondary)">'+_mcn(tblKey)+' 逐时数据</div>';
+              h0+='<div style="max-height:200px;overflow-y:auto;margin-top:6px;border:1px solid var(--divider);border-radius:6px">';
+              h0+='<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:var(--bg-primary);position:sticky;top:0"><th style="padding:6px 8px;text-align:left;color:var(--text-secondary)">时间</th><th style="padding:6px 8px;text-align:right;color:var(--text-secondary)">值</th><th style="padding:6px 8px;text-align:right;color:var(--text-secondary)">单位</th></tr></thead><tbody>';
+              var tblStep=Math.max(1,Math.floor(tblArr.length/24));
+              for(var i=0;i<tblArr.length;i+=tblStep){
+                if(i>=tblArr.length)break;
+                var d=tblArr[i],ts=d.recorded_at||d.timestamp||'',v=d.value!==undefined?d.value:d.val||'-',u=d.unit||'';
+                h0+='<tr style="border-top:1px solid var(--divider)"><td style="padding:5px 8px;color:var(--text-tertiary)">'+ts.substring(5,16)+'</td><td style="padding:5px 8px;text-align:right;color:var(--text-primary);font-weight:500">'+v+'</td><td style="padding:5px 8px;text-align:right;color:var(--text-tertiary)">'+u+'</td></tr>';
+              }
+              h0+='</tbody></table></div>';
+            }
+          }
+    }
+    var ts=ds[0].recorded_at||ds[0].timestamp;if(ts)h0+='<div class="dm-time">最新: '+ts.substring(0,16)+'</div>';
+  }else{h0+='<div class="empty" style="padding:10px;font-size:12px">暂无采集数据<br><span style="font-size:10px;color:var(--text-tertiary)">数据每5分钟自动采集，请检查设备通信状态</span></div>'}
+  h0+='</div>';
+  document.getElementById('sd-panel-0').innerHTML=h0;
+  // Render chart after DOM update
+  setTimeout(function(){_renderDataChart()},100);
+  // Tab 1: Inspection Plans (scheme-based)
+  var h1='',schemes=[];try{schemes=await af('/sites/'+sid+'/schemes')||[]}catch(e){}
+  if(schemes.length){
+    for(var sc=0;sc<schemes.length;sc++){
+      var scm=schemes[sc],label={'daily':'日','weekly':'周','monthly':'月'}[scm.period]||scm.period;
+      h1+='<div class="sd-card"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:14px;font-weight:500">'+label+'巡检方案 · '+scm.item_count+'项</div><button class="btn-sm" style="background:var(--brand-light);color:var(--brand)" onclick="quickCreatePlan('+scm.id+',\''+sid+'\')">新建计划</button></div></div>';
+    }
+  }else{
+    h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:8px">巡检方案</div><div class="empty" style="padding:10px;font-size:12px">还未配置方案<br><span style="color:var(--text-tertiary)">请在PC端导入或配置巡检方案</span></div></div>';
+  }
+  // Show recent inspection plans
+  h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:10px">最近巡检记录</div>';
+  if(siteInsp.length){siteInsp.sort(function(a,b){return (b.start_date||'')>(a.start_date||'')?1:-1});
+    for(var i=0;i<Math.min(siteInsp.length,5);i++){var p=siteInsp[i],pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
+      h1+='<div class="insp-record" onclick="openInspItems('+p.id+')"><div style="font-weight:500;color:var(--text-primary)">'+p.plan_name+'</div><div style="color:var(--text-tertiary);font-size:11px">'+(p.start_date||'')+' ~ '+(p.end_date||'')+'</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="progress-bar" style="flex:1;height:4px"><div class="progress-fill" style="width:'+pct+'%;height:4px"></div></div><span style="font-size:10px;color:var(--brand)">'+(p.completed_items||0)+'/'+(p.total_items||0)+'项</span></div></div>'}
+  }else h1+='<div class="empty" style="padding:10px">暂无巡检记录</div>';
+  h1+='</div>';document.getElementById('sd-panel-1').innerHTML=h1;
+}
+function switchSdTab(i){
+  document.querySelectorAll('.sd-subtab').forEach(function(e){e.classList.remove('active')});
+  document.querySelectorAll('.sd-panel').forEach(function(e){e.classList.remove('active')});
+  document.querySelectorAll('.sd-subtab')[i].classList.add('active');
+  document.getElementById('sd-panel-'+i).classList.add('active');
+}
+function closeSiteDetail(){document.getElementById('site-detail').classList.remove('open');currentSiteId=null}
+function navigateToSite(){
+  var s=allSites.find(function(x){return x.id===currentSiteId});if(!s)return;
+  var addr=s.name+(s.address?', '+s.address:'')+(s.district?', '+s.district:'');
+  window.open('https://uri.amap.com/search?keyword='+encodeURIComponent(addr)+'&callnative=1','_blank');
+  showToast('正在打开导航: '+s.name);
+}
+function handleAbnormalDevice(name,code){
+  var reason=prompt('异常处理 - '+name+'('+code+')\n请输入异常原因:',name+'通信中断');
+  if(!reason)return;
+  afP('/workorders',{site_id:currentSiteId,title:name+'('+code+') 异常处理',description:reason,level:'urgent',source:'mobile'}).then(function(r){
+    if(r&&r.success){showToast('已创建工单: '+r.order_no);refreshData()}else showToast('创建工单失败');
+  });
+}
+
+// ===== Alerts =====
+function renderAlertList(){
+  var kw=(document.getElementById('al-filter-inp').value||'').toLowerCase();
+  var list=allAlerts;if(kw)list=list.filter(function(a){return a.message.toLowerCase().includes(kw)||a.site_name.toLowerCase().includes(kw)});
+  list.sort(function(a,b){return (b.created_at||'')>(a.created_at||'')?1:-1});
+  _selectedAlerts={};updateBatchBar();
+  var html='';
+  if(!list.length)html='<div class="empty">暂无预警</div>';
+  else for(var i=0;i<list.length;i++){
+    var a=list[i],chk=_selectedAlerts[a.id]?' checked':'';
+    html+='<div class="al-item"><span class="al-check'+(chk?' checked':'')+'" onclick="event.stopPropagation();toggleAlertSelect('+a.id+');" id="chk-'+a.id+'">'+(chk?'✓':'')+'</span><span class="level-dot level-'+a.level+'"></span><span class="al-info" onclick="openAlertDetail('+a.id+')"><div class="al-msg">'+a.message+'</div><div class="al-site">'+a.site_name+'</div></span><span class="al-time">'+(a.created_at||'').substring(5,16)+'</span></div>';
+  }
+  document.getElementById('alerts-list').innerHTML=html;
+}
+function toggleAlertSelect(id){
+  if(_selectedAlerts[id])delete _selectedAlerts[id];else _selectedAlerts[id]=true;
+  var el=document.getElementById('chk-'+id);
+  if(el){if(_selectedAlerts[id]){el.classList.add('checked');el.textContent='✓'}else{el.classList.remove('checked');el.textContent=''}}
+  updateBatchBar();
+}
+function updateBatchBar(){
+  var cnt=Object.keys(_selectedAlerts).length,bar=document.getElementById('batch-bar');
+  document.getElementById('batch-count').textContent='已选 '+cnt+' 项';
+  bar.style.display=cnt>0?'flex':'none';
+}
+function batchClear(){_selectedAlerts={};renderAlertList();}
+async function batchResolve(){
+  var ids=Object.keys(_selectedAlerts);if(!ids.length)return;
+  if(!confirm('确认批量办结 '+ids.length+' 条预警?'))return;
+  var ok=0;for(var i=0;i<ids.length;i++){var r=await afP('/alerts/'+ids[i]+'/resolve',{operator:_user?(_user.real_name||_user.username):'系统',reason:'批量办结'});if(r&&r.success)ok++}
+  showToast('批量办结: '+ok+'/'+ids.length+' 成功');
+  allAlerts=allAlerts.filter(function(a){return !_selectedAlerts[a.id]});
+  _selectedAlerts={};updateTaskCounter();renderAlertList();renderHome();
+}
+async function batchConvert(){
+  var ids=Object.keys(_selectedAlerts);if(!ids.length)return;
+  var assignee=prompt('请输入负责人:','');if(!assignee)return;
+  var ok=0;for(var i=0;i<ids.length;i++){var r=await afP('/alerts/'+ids[i]+'/convert-order',{assignee:assignee});if(r&&r.success)ok++}
+  showToast('批量转工单: '+ok+'/'+ids.length+' 成功');
+  allAlerts=allAlerts.filter(function(a){return !_selectedAlerts[a.id]});
+  _selectedAlerts={};updateTaskCounter();renderAlertList();renderHome();
+}
+function filterAlerts(){renderAlertList()}
+
+async function openAlertDetail(aid){
+  currentAlertId=aid;var a=allAlerts.find(function(x){return x.id===aid});if(!a)return;
+  document.getElementById('alert-detail').classList.add('open');
+  var levelNames={red:'红色',orange:'橙色',yellow:'黄色'},levelColors={red:'var(--danger)',orange:'var(--warning)',yellow:'#ffd000'};
+  var html='<div class="iv-card al-detail"><div class="al-no">#'+a.id+'</div><div class="al-title">'+a.message+'</div>';
+  html+='<div class="al-meta"><span class="tag">'+a.site_name+'</span><span class="tag" style="color:'+(levelColors[a.level]||'#999')+'">级别:'+(levelNames[a.level]||a.level)+'</span><span class="tag">'+a.metric+'</span><span class="tag">值:'+a.value+'</span></div>';
+  html+='<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px">时间: '+(a.created_at||'').substring(0,16)+'</div>';
+  html+='<div class="al-actions"><button class="btn-sm" style="background:var(--brand);color:#fff" onclick="doResolve('+a.id+')">办结</button><button class="btn-sm" style="background:var(--info);color:#fff" onclick="doConvert('+a.id+')">转工单</button></div></div>';
+  document.getElementById('alert-detail-body').innerHTML=html;
+}
+function closeAlertDetail(){document.getElementById('alert-detail').classList.remove('open');currentAlertId=null}
+async function doResolve(id){
+  var r=await afP('/alerts/'+id+'/resolve',{operator:_user?(_user.real_name||_user.username):'系统',reason:'已人工处理'});
+  if(r&&r.success){showToast('已办结');closeAlertDetail();allAlerts=allAlerts.filter(function(a){return a.id!==id});updateTaskCounter();renderHome();if(document.getElementById('page-alerts').classList.contains('active'))renderAlertList()}
+  else showToast('操作失败');
+}
+async function doConvert(id){
+  var assignee=prompt('请输入负责人:','');if(!assignee)return;
+  var r=await afP('/alerts/'+id+'/convert-order',{assignee:assignee});
+  if(r&&r.success){showToast('已转工单: '+r.order_no);closeAlertDetail();allAlerts=allAlerts.filter(function(a){return a.id!==id});updateTaskCounter();renderHome();if(document.getElementById('page-alerts').classList.contains('active'))renderAlertList()}
+  else showToast('操作失败');
+}
+
+// ===== Work Orders =====
+async function openWoDetail(orderNo){
+  currentOrderNo=orderNo;document.getElementById('wo-detail-title').textContent='工单 '+orderNo;
+  document.getElementById('wo-detail').classList.add('open');
+  document.getElementById('wo-detail-body').innerHTML='<div class="loading">加载中...</div>';
+  var w=allWO.find(function(x){return x.order_no===orderNo});if(!w){document.getElementById('wo-detail-body').innerHTML='<div class="empty">工单不存在</div>';return}
+  var s=w.status||'pending',pct=WO_PCT[s]||0,sb=SB_CLASS[s]||'sb-pending';
+  var html='<div class="iv-card"><div style="font-size:10px;color:var(--brand);font-family:monospace">'+w.order_no+'</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin:6px 0">'+w.title+'</div>';
+  html+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"><span class="status-badge '+(w.level==='critical'?'sb-danger':'sb-info')+'">'+(w.level==='critical'?'紧急':w.level==='urgent'?'重要':'常规')+'</span><span class="status-badge '+sb+'">'+(SM[s]||s)+'</span></div>';
+  html+='<div style="font-size:12px;color:var(--text-tertiary)">站点: '+w.site_name+(w.assignee?' · 负责人: '+w.assignee:'')+(w.sla_deadline?' · SLA: '+w.sla_deadline.substring(0,10):'')+'</div>';
+  html+='<div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div>';
+  var acts=getWOActions(s);
+  if(acts.length){html+='<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">';for(var i=0;i<acts.length;i++){html+='<button class="btn-sm" style="background:'+acts[i].bg+';color:#fff" onclick="doWOAction(\''+orderNo+'\',\''+acts[i].st+'\')">'+acts[i].label+'</button>'}html+='</div>'}
+  // Photo upload
+  html+='<div style="margin-top:12px;padding:10px;background:var(--bg-primary);border-radius:8px;font-size:12px;color:var(--text-secondary)"><div style="margin-bottom:6px;font-weight:500">📷 上传凭证（可选）</div><div style="display:flex;gap:8px;align-items:center"><input type="file" id="wo-photo-'+orderNo+'" accept="image/*" capture="environment" style="flex:1;font-size:11px" onchange="_previewPhoto(this,\'preview-'+orderNo+'\')"><div id="preview-'+orderNo+'" style="width:56px;height:56px;border-radius:6px;border:1px dashed var(--border-color);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);overflow:hidden;flex-shrink:0;background:var(--bg-card)">预览</div></div></div>';
+  html+='</div>';document.getElementById('wo-detail-body').innerHTML=html;
+}
+// Photo preview helper
+function _previewPhoto(input,previewId){
+  var file=input.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var el=document.getElementById(previewId);
+    if(el)el.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';
+    // Store for later use
+    window['_img_'+input.id]=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function getWOActions(status){
+  var m={pending:[{st:'accepted',label:'受理工单',bg:'#07C160'},{st:'closed',label:'关闭工单',bg:'#999'}],accepted:[{st:'in_progress',label:'开始处置',bg:'#07C160'},{st:'closed',label:'关闭工单',bg:'#999'}],in_progress:[{st:'closed',label:'完成处置',bg:'#07C160'},{st:'accepted',label:'退回',bg:'#ff9800'}],closed:[]};
+  return m[status]||[];
+}
+async function doWOAction(orderNo,newStatus){
+  if(_woBusy)return;_woBusy=true;
+  var btn=document.querySelector('#wo-detail .btn-sm[onclick*="'+orderNo+'"]');
+  if(btn){btn.disabled=true;btn.textContent='处理中...';btn.style.opacity='0.6'}
+  var imgKey='_img_wo-photo-'+orderNo,imgData=window[imgKey]||'';
+  var payload={status:newStatus};
+  if(imgData)payload.remark='[图片凭证] '+imgData.substring(0,100)+'...';
+  var success=false,errMsg='';
+  for(var attempt=0;attempt<2;attempt++){
+    if(attempt>0&&btn)btn.textContent='重试中...';
+    try{
+      var ac=new AbortController();
+      var tid=setTimeout(function(){ac.abort()},25000);
+      var resp=await fetch(API+'/workorders/'+orderNo+'/status',{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(payload),signal:ac.signal});
+      clearTimeout(tid);
+      if(resp.status===401){_token='';try{localStorage.removeItem('water_ops_token')}catch(e){}showLogin();_woBusy=false;return}
+      var ct=resp.headers.get('content-type')||'';
+      var r=ct.includes('application/json')?await resp.json():{success:resp.ok,error:await resp.text()};
+      if(r&&r.success){success=true;break}else{errMsg=r?r.error||r.error_msg||'未知错误':'网络错误'}
+    }catch(e){errMsg=e.name==='AbortError'?'服务器繁忙，正在后台处理':'网络错误';if(attempt<1)await new Promise(function(cb){setTimeout(cb,1000)})}
+  }
+  _woBusy=false;
+  if(success){showToast('操作成功');if(window[imgKey])delete window[imgKey];closeView('wo-detail');refreshData()}
+  else showToast('操作失败: '+errMsg+'，请刷新确认');
+}
+
+// ===== Quick Actions =====
+function openOrdersList(){
+  var h='';for(var i=0;i<allWO.length;i++){var w=allWO[i];h+='<div class="iv-card" onclick="openWoDetail(\''+w.order_no+'\')"><div style="font-size:10px;color:var(--brand);font-family:monospace">'+w.order_no+'</div><div style="font-size:14px;color:var(--text-primary)">'+w.title+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+w.site_name+' · '+(SM[w.status]||w.status)+'</div></div>'}
+  document.getElementById('wo-detail-body').innerHTML=h||'<div class="empty">暂无工单</div>';
+  document.getElementById('wo-detail-title').textContent='工单列表';
+  document.getElementById('wo-detail').classList.add('open');
+}
+
+// ===== Inspections =====
+var _inspFilterTab='pending',_inspFilterKw='',_inspFilterSite='';
+async function loadInspections(){
+  document.getElementById('insp-checklist').classList.add('open');
+  document.getElementById('insp-checklist-body').innerHTML='<div class="loading">加载中...</div>';
+  var plans=await af('/inspections');allInsp=plans||[];
+  _renderInspList();
+}
+function _renderInspList(){
+  var kw=_inspFilterKw.toLowerCase(),site=_inspFilterSite.toLowerCase(),tab=_inspFilterTab;
+  var filtered=allInsp.filter(function(p){
+    var match=true;
+    if(tab==='pending'&&p.status==='completed')match=false;
+    if(tab==='history'&&p.status!=='completed')match=false;
+    if(kw&&(p.plan_name||'').toLowerCase().indexOf(kw)<0&&(p.site_name||'').toLowerCase().indexOf(kw)<0)match=false;
+    if(site&&(p.site_name||'').toLowerCase().indexOf(site)<0)match=false;
+    return match;
+  });
+  filtered.sort(function(a,b){return (b.start_date||'')>(a.start_date||'')?1:-1});
+  // Tabs
+  var html='<div style="display:flex;gap:0;margin-bottom:12px"><button class="insp-tab-btn'+(tab==='pending'?' active':'')+'" onclick="_switchInspTab(\'pending\')">待处理</button><button class="insp-tab-btn'+(tab==='history'?' active':'')+'" onclick="_switchInspTab(\'history\')">历史计划</button></div>';
+  // Search + filter
+  html+='<div style="display:flex;gap:6px;margin-bottom:10px"><input id="insp-kw" placeholder="搜索站点/方案..." style="flex:1;padding:8px 10px;border:1px solid var(--divider);border-radius:6px;font-size:12px;background:var(--bg-card)" value="'+_inspFilterKw+'" oninput="_inspFilterKw=this.value;_renderInspList()"><select id="insp-site-filter" style="width:90px;padding:8px 6px;border:1px solid var(--divider);border-radius:6px;font-size:12px;background:var(--bg-card)" onchange="_inspFilterSite=this.value;_renderInspList()"><option value="">全部站点</option>'+_buildSiteOptions()+'</select></div>';
+  if(!filtered.length){html+='<div class="empty">'+(tab==='pending'?'暂无待处理计划':'暂无历史记录')+'</div>'}
+  else{
+    for(var i=0;i<Math.min(filtered.length,30);i++){
+      var p=filtered[i],pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
+      html+='<div class="iv-card" onclick="openInspItems('+p.id+')"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+p.plan_name+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+p.site_name+' · '+(p.completed_items||0)+'/'+(p.total_items||0)+'项 · '+(p.start_date||'').substring(5)+'</div></div>';
+    }
+  }
+  document.getElementById('insp-checklist-body').innerHTML=html;
+}
+function _buildSiteOptions(){
+  var sites={},html='';
+  // Use allInsp if available, fallback to allSites
+  if(allInsp.length){for(var i=0;i<allInsp.length;i++){sites[allInsp[i].site_name]=1}}
+  else{for(var i=0;i<allSites.length;i++){sites[allSites[i].name]=1}}
+  var names=[];for(var k in sites)names.push(k);names.sort();
+  for(var i=0;i<names.length;i++){html+='<option value="'+names[i]+'"'+(names[i]===_inspFilterSite?' selected':'')+'>'+names[i]+'</option>'}
+  return html;
+}
+function _switchInspTab(tab){_inspFilterTab=tab;_renderInspList()}
+async function openInspItems(pid){
+  var plan=allInsp.find(function(x){return x.id===pid});if(!plan)return;
+  document.getElementById('insp-title').textContent=plan.plan_name||'巡检清单';
+  var tasks=await af('/inspections/'+pid+'/tasks');inspData[pid]=tasks||[];
+  var html='<div class="iv-card"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+plan.plan_name+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+plan.site_name+'</div></div>';
+  if(tasks){for(var i=0;i<tasks.length;i++){var t=tasks[i],done=!!t.result,isAb=t.result==='abnormal';html+='<div class="iv-card" id="ck-item-'+t.id+'" style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;background:'+(done?(isAb?'var(--danger)':'var(--brand)'):'var(--bg-primary)')+'">'+(done?(isAb?'✕':'✓'):(i+1))+'</span><span style="flex:1;font-size:13px;color:var(--text-primary)">'+t.check_item+'</span>'+(done?'<span style="font-size:11px;color:'+(isAb?'var(--danger)':'var(--brand)')+'">'+(isAb?'异常':'正常')+'</span>':'<div style="display:flex;gap:4px"><button class="btn-sm" style="background:var(--brand-light);color:var(--brand)" onclick="checkItem('+t.id+',\'normal\')">正常</button><button class="btn-sm" style="background:var(--danger-bg);color:var(--danger)" onclick="checkItem('+t.id+',\'abnormal\')">异常</button></div>')+'</div>'}
+  }
+  document.getElementById('insp-checklist-body').innerHTML=html;
+}
+async function checkItem(taskId,result){
+  var now=new Date().toISOString().replace('T',' ').substring(0,19);
+  var r=await afPt('/inspections/tasks/'+taskId,{result:result,check_time:now});
+  if(r&&(r.success||!r.error)){showToast('已标记');var el=document.getElementById('ck-item-'+taskId);if(el)el.style.opacity='0.5'}
+}
+// loadNewInspection - with optional siteId for preselection
+// ===== Quick Create Plan from Scheme =====
+async function quickCreatePlan(schemeId,siteId){
+  var scheme=await af('/schemes/'+schemeId);if(!scheme||scheme.error){showToast('获取方案失败');return}
+  var label={'daily':'日','weekly':'周','monthly':'月'}[scheme.period]||scheme.period;
+  var today=new Date();var endDate=new Date(today.getTime()+7*86400000);
+  var fmt=function(d){return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')};
+  document.getElementById('new-inspection').classList.add('open');
+  document.getElementById('new-inspection-body').innerHTML='<div class="iv-card"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">快速新建 · '+label+'巡检</div><div style="font-size:12px;color:var(--text-tertiary);margin:4px 0">方案: '+scheme.name+' ('+(scheme.items||[]).length+'项)</div><div class="form-group" style="margin-top:12px"><label>截止日期</label><input type="date" id="ni-end" value="'+fmt(endDate)+'"></div><button class="btn-primary" onclick="submitSchemePlan('+schemeId+','+siteId+')">提交计划</button></div>';
+}
+async function submitSchemePlan(schemeId,siteId){
+  var endDate=document.getElementById('ni-end').value;
+  var d=await afP('/inspections',{plan_name:'快速巡检',site_id:parseInt(siteId),type:'daily',start_date:new Date().toISOString().substring(0,10),end_date:endDate,scheme_id:schemeId,check_items:[]});
+  if(d&&d.success){showToast('计划已创建');closeView('new-inspection');closeView('site-detail');refreshData()}
+  else showToast('创建失败: '+(d?d.error:'网络错误'));
+}
+
+function loadNewInspection(){_loadNewInspForm(null)}
+function loadNewInspectionFor(siteId){_loadNewInspForm(siteId)}
+async function _loadNewInspForm(siteId){
+  document.getElementById('new-inspection').classList.add('open');
+  var ops='<option value="">选择站点</option>';
+  for(var i=0;i<allSites.length;i++){var s=allSites[i],sel=s.id===siteId?' selected':'';ops+='<option value="'+s.id+'"'+sel+'>'+s.name+'</option>'}
+  var html='<div class="iv-card">'
+    +'<div class="form-group"><label>站点</label><input id="ni-site-search" placeholder="搜索站点名称..." oninput="filterNiSites()" style="margin-bottom:6px"><select id="ni-site" style="max-height:150px" onchange="loadNiSchemes()">'+ops+'</select></div>'
+    +'<div id="ni-schemes" style="margin-bottom:12px"></div>'
+    +'<div class="form-group"><label>巡视频率</label><select id="ni-period"><option value="daily">日巡检（每天）</option><option value="weekly">周巡检（每周）</option><option value="monthly">月巡检（每月）</option></select></div>'
+    +'<div class="form-group"><label>备注</label><textarea id="ni-remark" placeholder="其他说明（可选）" style="height:48px"></textarea></div>';
+  html+='</div><div style="position:sticky;bottom:0;background:var(--bg-primary);padding:var(--space-md);border-top:1px solid var(--divider)"><button class="btn-primary" onclick="submitNewInspection()" style="width:100%">提交计划</button></div>';
+  document.getElementById('new-inspection-body').innerHTML=html;
+  if(siteId)loadNiSchemes();
+}
+
+var _allSchemes={};
+async function loadNiSchemes(){
+  var sid=parseInt(document.getElementById('ni-site').value);if(!sid)return;
+  var el=document.getElementById('ni-schemes');el.innerHTML='<div style="font-size:12px;color:var(--text-tertiary)">加载方案...</div>';
+  try{var schemes=await af('/sites/'+sid+'/schemes')||[]}catch(e){schemes=[]}
+  if(!schemes.length){el.innerHTML='<div class="empty" style="padding:10px;font-size:12px">该站点未配置方案</div>';return}
+  var html='<div class="form-group"><label>选择巡检方案</label>';
+  for(var i=0;i<schemes.length;i++){
+    var scm=schemes[i],label={'daily':'日','weekly':'周','monthly':'月'}[scm.period]||scm.period;
+    html+='<label style="display:flex;align-items:center;justify-content:space-between;padding:10px;margin:4px 0;border:1px solid var(--divider);border-radius:8px;cursor:pointer;transition:background .15s" class="ni-scheme-opt" onclick="selectNiScheme('+scm.id+',this)"><input type="radio" name="ni-scheme" value="'+scm.id+'" style="display:none"><span style="font-size:14px;font-weight:500;color:var(--text-primary)">'+label+'巡检方案</span><span style="font-size:11px;color:var(--text-tertiary)">'+scm.item_count+'项</span></label>';
+  }
+  html+='</div>';el.innerHTML=html;
+}
+
+function selectNiScheme(schemeId,el){
+  document.querySelectorAll('.ni-scheme-opt').forEach(function(e){e.style.borderColor='var(--divider)';e.style.background='transparent'});
+  el.style.borderColor='var(--brand)';el.style.background='var(--brand-light)';
+  el.querySelector('input[type=radio]').checked=true;
+}
+
+function filterNiSites(){
+  var q=document.getElementById('ni-site-search').value.toLowerCase();
+  var sel=document.getElementById('ni-site');
+  for(var i=1;i<sel.options.length;i++){var t=sel.options[i].text.toLowerCase();sel.options[i].style.display=t.includes(q)?'':'none'}
+}
+
+async function submitNewInspection(){
+  var sel=document.getElementById('ni-site');var sid=parseInt(sel.value);if(!sid||sid<1){showToast('请选择站点');return}
+  var schemeRdo=document.querySelector('input[name=ni-scheme]:checked');
+  var schemeId=schemeRdo?parseInt(schemeRdo.value):0;
+  var period=document.getElementById('ni-period').value,remark=document.getElementById('ni-remark').value.trim();
+  var today=new Date().toISOString().substring(0,10);
+  var endDate=today; // default same day
+  if(period==='weekly'){var d=new Date();d.setDate(d.getDate()+7-d.getDay());endDate=d.toISOString().substring(0,10)}
+  else if(period==='monthly'){var d=new Date();d.setMonth(d.getMonth()+1);d.setDate(0);endDate=d.toISOString().substring(0,10)}
+  var payload={plan_name:(period==='daily'?'日':period==='weekly'?'周':'月')+'巡检计划',site_id:sid,type:period,start_date:today,end_date:endDate,period:period};
+  if(schemeId)payload.scheme_id=schemeId;
+  if(schemeId){
+    try{var scm=await af('/schemes/'+schemeId);if(scm&&scm.items)payload.check_items=scm.items.map(function(x){return x.check_item})}catch(e){}
+  }
+  if(!payload.check_items||!payload.check_items.length)payload.check_items=[];
+  if(remark)payload.description=remark;
+  var d=await afP('/inspections',payload);
+  if(d&&d.success){showToast('计划已创建');closeView('new-inspection');closeView('insp-checklist');closeView('site-detail');refreshData()}
+  else showToast('创建失败: '+(d?d.error:'网络错误'));
+}
+
+// ===== Parts & Manuals =====
+function openPartsApply(){document.getElementById('parts-apply').classList.add('open')}
+async function loadPartsSites(){var s=await af('/sites');var sel=document.getElementById('parts-site');if(s)for(var i=0;i<s.length;i++){sel.innerHTML+='<option>'+s[i].name+'</option>'}}
+function submitParts(){showToast('申请已提交（演示）');setTimeout(function(){closeView('parts-apply')},1000)}
+function openManuals(){
+  document.getElementById('manuals').classList.add('open');
+  var m=[{title:'水文监测设备运维手册',cat:'设备操作'},{title:'故障排查指南',cat:'故障处理'},{title:'雨量站巡检规程',cat:'巡检规范'},{title:'水位计校准流程',cat:'校准规范'},{title:'数据传输异常处理',cat:'故障处理'},{title:'汛期值班制度',cat:'制度规范'},{title:'安全生产流程',cat:'安全规范'},{title:'备品备件管理',cat:'仓库管理'}];
+  var h='';for(var i=0;i<m.length;i++){h+='<div class="iv-card"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+m[i].title+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+m[i].cat+'</div></div>'}
+  document.getElementById('manuals-body').innerHTML=h;
+}
+
+// ===== Inline View Management =====
+function closeView(name){document.getElementById(name).classList.remove('open')}
+
+// ===== Chart Rendering =====
+function _renderDataChart(){
+  var cvs=document.getElementById('data-chart');if(!cvs)return;
+  var dataEl=document.getElementById('chart-data');if(!dataEl)return;
+  try{
+    var cd=JSON.parse(dataEl.textContent);
+    var keys=cd.keys||[],metrics=cd.metrics||{};
+    if(!keys.length){_showChartMsg(cvs,'暂无指标数据');return}
+    // Try to find a metric with non-trivial data (variance > 0)
+    var bestKey=null,bestArr=null;
+    for(var k=0;k<keys.length;k++){
+      var arr=metrics[keys[k]]||[];
+      if(arr.length<2)continue;
+      var vals=[];for(var i=0;i<arr.length;i++){vals.push(parseFloat(arr[i].value!==undefined?arr[i].value:arr[i].val||0))}
+      var hasVar=false;for(var i=1;i<vals.length;i++){if(vals[i]!==vals[0]){hasVar=true;break}}
+      if(hasVar){bestKey=keys[k];bestArr=arr;break}
+    }
+    if(!bestKey){bestKey=keys[0];bestArr=metrics[bestKey]||[]}
+    if(!bestArr||bestArr.length<2){_showChartMsg(cvs,'数据不足，需2条以上记录');return}
+    bestArr.reverse(); // oldest first
+    // Dynamic step: thin to ~24 hourly points if enough data, else use all
+    var step=Math.max(1,Math.floor(bestArr.length/24));
+    var hourlyData=[];
+    for(var i=0;i<bestArr.length;i+=step){hourlyData.push(bestArr[i])}
+    // Cap at 24 points max
+    if(hourlyData.length>24)hourlyData=hourlyData.slice(-24);
+    var labels=[],values=[],allSame=true;
+    for(var i=0;i<hourlyData.length;i++){
+      var d=hourlyData[i],ts=d.recorded_at||d.timestamp||'';
+      labels.push(ts.substring(5,16)); // MM-DD HH:mm
+      var v=parseFloat(d.value!==undefined?d.value:d.val||0);
+      values.push(v);
+      if(i>0&&v!==values[0])allSame=false;
+    }
+    // Destroy existing chart
+    if(cvs._chart){cvs._chart.destroy();cvs._chart=null}
+    var ctx=cvs.getContext('2d');
+    if(typeof Chart==='undefined'){_showChartMsg(cvs,'Chart.js 加载失败');return}
+    try{sec=getComputedStyle(document.body).getPropertyValue('--text-secondary').trim()||'rgba(0,0,0,0.55)';ter=getComputedStyle(document.body).getPropertyValue('--text-tertiary').trim()||'rgba(0,0,0,0.35)';gridC=getComputedStyle(document.body).getPropertyValue('--border-color').trim()||'rgba(0,0,0,0.08)'}catch(e){sec='#888';ter='#aaa';gridC='#eee'}
+    var chartConf={
+      type:'line',
+      data:{
+        labels:labels,
+        datasets:[{
+          label:_mcn(bestKey),
+          data:values,
+          borderColor:'#07C160',
+          backgroundColor:'rgba(7,193,96,0.08)',
+          borderWidth:2,
+          pointRadius:allSame?0:2,
+          pointBackgroundColor:'#07C160',
+          fill:true,
+          tension:0.3
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            display:true,
+            labels:{
+              font:{size:10},
+              color:sec,
+              usePointStyle:true,
+              pointStyle:'line',
+              padding:12
+            }
+          }
+        },
+        scales:{
+          x:{ticks:{font:{size:7},color:ter,maxTicksLimit:12,maxRotation:45,minRotation:0}},
+          y:{ticks:{font:{size:8},color:ter},grid:{color:gridC}}
+        }
+      }
+    };
+    var chart=new Chart(ctx,chartConf);
+    cvs._chart=chart;
+    if(allSame){
+      var msg=document.createElement('div');
+      msg.className='dm-time';
+      msg.style.color='var(--text-tertiary)';
+      msg.textContent='近期数据平稳，监测正常';
+      cvs.parentNode.insertBefore(msg,cvs);
+    }
+  }catch(e){console.error('Chart render error:',e);_showChartMsg(cvs,'图表渲染失败')}
+}
+function _showChartMsg(cvs,msg){if(cvs.parentNode)cvs.parentNode.innerHTML='<div class="empty" style="padding:20px;font-size:12px;color:var(--text-tertiary)">'+msg+'</div>'}
+
+// ===== Startup =====
+(async function(){updateDateTime();var ok=await checkAuth();if(ok){init();loadPartsSites()}})();
 </script>
 </body>
 </html>

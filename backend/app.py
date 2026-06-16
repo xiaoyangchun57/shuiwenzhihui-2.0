@@ -105,10 +105,12 @@ import sqlite3
 import random
 import time
 import threading
+import hashlib
+import secrets
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 
-from flask import Flask, jsonify, request, g, send_from_directory
+from flask import Flask, jsonify, request, g, send_from_directory, send_file
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
@@ -142,10 +144,10 @@ def get_site_trend(site_id, metric, base, var, min_v=None, max_v=None):
 
 @contextmanager
 def get_db():
-    db = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+    db = sqlite3.connect(DB_PATH, timeout=3, check_same_thread=False)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
-    db.execute("PRAGMA busy_timeout=30000")
+    db.execute("PRAGMA busy_timeout=3000")
     db.execute("PRAGMA synchronous=NORMAL")
     db.execute("PRAGMA cache_size=-8000")
     try:
@@ -227,6 +229,8 @@ def init_db():
                 created_at TEXT DEFAULT (datetime('now','localtime')),
                 FOREIGN KEY (site_id) REFERENCES sites(id)
             );
+            -- Migrate: add period column if not exists
+            -- This ALTER TABLE is executed separately below, not in executescript
 
             CREATE TABLE IF NOT EXISTS inspection_tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -349,6 +353,49 @@ def init_db():
                 remark TEXT,
                 created_at TEXT DEFAULT (datetime('now','localtime'))
             );
+
+            -- 用户表（登录系统）
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'operator',
+                real_name TEXT NOT NULL,
+                phone TEXT DEFAULT '',
+                status TEXT DEFAULT 'active',
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            );
+
+            -- 用户-站点分配（多对多）
+            CREATE TABLE IF NOT EXISTS user_sites (
+                user_id INTEGER NOT NULL,
+                site_id INTEGER NOT NULL,
+                PRIMARY KEY (user_id, site_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (site_id) REFERENCES sites(id)
+            );
+            -- 巡检方案母表
+            CREATE TABLE IF NOT EXISTS inspection_schemes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_id INTEGER NOT NULL,
+                period TEXT NOT NULL,
+                name TEXT NOT NULL,
+                status TEXT DEFAULT 'active',
+                updated_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (site_id) REFERENCES sites(id),
+                UNIQUE(site_id, period)
+            );
+
+            -- 方案检查项明细
+            CREATE TABLE IF NOT EXISTS inspection_scheme_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scheme_id INTEGER NOT NULL,
+                category TEXT DEFAULT '',
+                check_item TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                is_required INTEGER DEFAULT 1,
+                FOREIGN KEY (scheme_id) REFERENCES inspection_schemes(id) ON DELETE CASCADE
+            );
         ''')
         # 兼容已有数据库：尝试添加列，忽略已存在的错误
         for col_sql in [
@@ -364,6 +411,9 @@ def init_db():
             "ALTER TABLE maintenance_plans ADD COLUMN sub_category TEXT",
             "ALTER TABLE maintenance_plans ADD COLUMN check_results TEXT",
             "ALTER TABLE maintenance_plans ADD COLUMN remark TEXT",
+            "ALTER TABLE inspection_plans ADD COLUMN period TEXT DEFAULT 'once'",
+            "ALTER TABLE inspection_plans ADD COLUMN description TEXT DEFAULT ''",
+            "ALTER TABLE inspection_plans ADD COLUMN scheme_id INTEGER",
         ]:
             try:
                 db.execute(col_sql)
@@ -851,14 +901,29 @@ def _generate_site_data(site, db, now):
         elif temp > 35:
             create_alert_internal(db,sid,'temperature',temp,'yellow',f'高温预警 {temp}°C')
 
+def _scheduler_db():
+    """专用调度器数据库连接（超时5秒，异步写入，避免阻塞API）"""
+    db = sqlite3.connect(DB_PATH, timeout=5, check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA busy_timeout=5000")
+    db.execute("PRAGMA synchronous=OFF")
+    return db
+
 def generate_sensor_data():
     """每30秒生成模拟传感器数据"""
     PRESET_OFFLINE = {5, 108, 193}  # 预设离线站点，跳过状态更新
-    with get_db() as db:
+    db = None
+    try:
+        db = _scheduler_db()
+    except Exception as e:
+        print(f'[Sim] 调度器连接失败: {e}')
+        return
+    try:
         sites = db.execute("SELECT * FROM sites").fetchall()
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        for site in sites:
+        for idx, site in enumerate(sites):
             sid = site['id']
             try:
                 _generate_site_data(site, db, now)
@@ -867,28 +932,20 @@ def generate_sensor_data():
                     print(f'[Sim] DB locked, skip site {sid}')
                 else:
                     print(f'[Sim] site {sid} error: {e}')
-                db.rollback()
 
             # 设备在线/离线状态切换
-            # 降低状态切换频率 (1%概率)，避免频繁跳变导致的数据一致性保证（不随机切换）
             if sid in PRESET_OFFLINE: continue
             new_status = 'online'
             db.execute("UPDATE device_shadows SET status=?, last_data_time=? WHERE site_id=?",
-
                        (new_status, now if new_status == 'online' else None, sid))
             db.execute("UPDATE sites SET status=?, last_heartbeat=? WHERE id=?",
                        (new_status, now if new_status == 'online' else None, sid))
 
-            # 离线告警已禁用（演示模式下设备不随机离线）
-            # 数据异常检测：突变检测
-            # 通过比对最近两条记录的差异来判断
-            last_two = db.execute(
-                "SELECT metric, value FROM sensor_data WHERE site_id=? ORDER BY recorded_at DESC LIMIT 3",
-                (sid,)
-            ).fetchmany(3)
-            if len(last_two) >= 2:
-                for row in last_two[0:2]:  # 对比最新的数据
-                    pass  # 简化版本：不做复杂的突变检测
+            # 每个站点单独提交，释放写锁，让API请求能快速插入
+            try:
+                db.commit()
+            except Exception as e:
+                print(f'[Sim] commit fail site {sid}: {e}')
 
         # 更新设备时间戳
         db.execute("UPDATE device_shadows SET last_data_time=? WHERE status='online'", (now,))
@@ -943,6 +1000,14 @@ def generate_sensor_data():
                    precipitation,pressure,weather_type,warning_info) VALUES (?,?,?,?,?,?,?,?)""",
                    (temp, humidity, wind_speed, wind_dir, precip, pressure, weather, warning_info))
         db.commit()
+    except Exception as e:
+        print(f'[Sim] 数据生成异常: {e}')
+    finally:
+        if db:
+            try:
+                db.close()
+            except:
+                pass
 
 def create_alert_internal(db, site_id, metric, value, level, message):
     # 检查最近1小时内是否有相同的site+metric告警（含已办结），有则跳过
@@ -956,6 +1021,67 @@ def create_alert_internal(db, site_id, metric, value, level, message):
             (site_id, metric, value, level, message)
         )
 
+# ===================== 登录认证系统 =====================
+
+# Token存储
+_tokens = {}
+
+def _hash_pw(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def seed_users():
+    with get_db() as db:
+        cnt = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        if cnt > 0:
+            print("[Auth] 用户已存在，跳过")
+            return
+        users = [
+            ('admin', 'admin123', 'admin', '系统管理员', '13800000000'),
+            ('zhangsan', 'yw123456', 'operator', '张建国', '13800000001'),
+            ('lisi', 'yw123456', 'operator', '黎明', '13800000002'),
+            ('wangwu', 'yw123456', 'operator', '王刚', '13800000003'),
+            ('zhaoliu', 'yw123456', 'operator', '赵洪', '13800000004'),
+        ]
+        for u in users:
+            db.execute("INSERT INTO users (username,password_hash,role,real_name,phone) VALUES (?,?,?,?,?)",
+                       (u[0], _hash_pw(u[1]), u[2], u[3], u[4]))
+        print("[Auth] 5个用户已创建")
+        all_ids = [r['id'] for r in db.execute("SELECT id FROM sites").fetchall()]
+        for sid in all_ids:
+            db.execute("INSERT OR IGNORE INTO user_sites (user_id,site_id) VALUES (?,?)", (1, sid))
+        assignments = [(2, 1, 70), (3, 71, 140), (4, 141, 210), (5, 211, 267)]
+        for uid, start_id, end_id in assignments:
+            for sid in range(start_id, end_id + 1):
+                if sid <= max(all_ids):
+                    db.execute("INSERT OR IGNORE INTO user_sites (user_id,site_id) VALUES (?,?)", (uid, sid))
+        db.commit()
+        print("[Auth] 站点分配完成")
+
+def login_required(f):
+    """认证中间件：从Authorization头中提取token，注入g.current_user和g.user_sites"""
+    from functools import wraps
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        auth = request.headers.get('Authorization', '')
+        token = auth.replace('Bearer ', '').strip() if auth.startswith('Bearer ') else ''
+        if not token or token not in _tokens:
+            return jsonify({'error': '未登录或登录已过期', 'code': 'AUTH_REQUIRED'}), 401
+        user = _tokens[token]
+        g.current_user = user
+        with get_db() as db:
+            rows = db.execute("SELECT site_id FROM user_sites WHERE user_id=?", (user['id'],)).fetchall()
+        g.user_site_ids = [r['site_id'] for r in rows]
+        return f(*args, **kwargs)
+    return wrapper
+
+def _filter_site_ids():
+    """返回当前用户可见的site_id列表（管理员返回None=全部）"""
+    site_ids = getattr(g, 'user_site_ids', None)
+    if site_ids is None:
+        return None
+    return site_ids
+
+
 # ===================== API Routes =====================
 
 @app.route('/api/health')
@@ -964,21 +1090,36 @@ def health():
 
 # --- Sites ---
 @app.route('/api/sites')
+@login_required
 def get_sites():
+    site_ids = _filter_site_ids()
     with get_db() as db:
-        rows = db.execute("""
-            SELECT s.id, s.code, s.name, s.type, s.lat, s.lng, s.district, s.river,
-                   s.manager, s.phone, s.last_heartbeat, s.created_at,
-                   COUNT(d.id) as device_count,
-                   SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) as offline_count,
-                   CASE WHEN SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) > 0 THEN 'offline' ELSE 'online' END as status
-            FROM sites s LEFT JOIN device_shadows d ON s.id=d.site_id
-            GROUP BY s.id ORDER BY s.id
-        """).fetchall()
+        if site_ids is not None:
+            placeholders = ','.join('?' * len(site_ids))
+            rows = db.execute(f"""
+                SELECT s.id, s.code, s.name, s.type, s.lat, s.lng, s.district, s.river,
+                       s.manager, s.phone, s.last_heartbeat, s.created_at,
+                       COUNT(d.id) as device_count,
+                       SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) as offline_count,
+                       CASE WHEN SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) > 0 THEN 'offline' ELSE 'online' END as status
+                FROM sites s LEFT JOIN device_shadows d ON s.id=d.site_id
+                WHERE s.id IN ({placeholders})
+                GROUP BY s.id ORDER BY s.id
+            """, site_ids).fetchall()
+        else:
+            rows = db.execute("""
+                SELECT s.id, s.code, s.name, s.type, s.lat, s.lng, s.district, s.river,
+                       s.manager, s.phone, s.last_heartbeat, s.created_at,
+                       COUNT(d.id) as device_count,
+                       SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) as offline_count,
+                       CASE WHEN SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) > 0 THEN 'offline' ELSE 'online' END as status
+                FROM sites s LEFT JOIN device_shadows d ON s.id=d.site_id
+                GROUP BY s.id ORDER BY s.id
+            """).fetchall()
         result = []
         for r in rows:
             d = dict(r)
-            d['status'] = r['status']  # Use calculated status
+            d['status'] = r['status']
             result.append(d)
         return jsonify(result)
 
@@ -1013,8 +1154,10 @@ def get_site(site_id):
 
 # --- Sensor Data ---
 @app.route('/api/data/realtime')
+@login_required
 def realtime_data():
     """各站点最新一条数据（优化：一次查询，不用N+1）"""
+    site_ids = _filter_site_ids()
     with get_db() as db:
         # 一次查询获取所有站点的最新传感器数据
         latest = {}
@@ -1032,12 +1175,18 @@ def realtime_data():
                 latest[r['site_id']] = r
         except:
             pass
-        sites = db.execute("""SELECT s.id, s.code, s.name, s.type, s.lat, s.lng,
+        site_sql = """SELECT s.id, s.code, s.name, s.type, s.lat, s.lng,
                    CASE WHEN COUNT(d.id) = 0 THEN 'online'
                         WHEN SUM(CASE WHEN d.status='offline' THEN 1 ELSE 0 END) > 0 THEN 'offline'
                         ELSE 'online' END as status
-            FROM sites s LEFT JOIN device_shadows d ON s.id=d.site_id
-            GROUP BY s.id""").fetchall()
+            FROM sites s LEFT JOIN device_shadows d ON s.id=d.site_id"""
+        site_params = []
+        if site_ids is not None:
+            placeholders = ','.join('?' * len(site_ids))
+            site_sql += f" WHERE s.id IN ({placeholders})"
+            site_params = site_ids
+        site_sql += " GROUP BY s.id"
+        sites = db.execute(site_sql, site_params).fetchall()
         result = []
         for s in sites:
             row = latest.get(s['id'])
@@ -1061,14 +1210,25 @@ def site_data(site_id):
         return jsonify([dict(r) for r in rows])
 
 @app.route('/api/data/overview')
+@login_required
 def data_overview():
+    site_ids = _filter_site_ids()
     with get_db() as db:
-        total_sites = db.execute("SELECT COUNT(*) as c FROM sites").fetchone()['c']
-        online_sites = db.execute("SELECT COUNT(*) as c FROM sites WHERE status='online'").fetchone()['c']
-        device_total = db.execute("SELECT COUNT(*) as c FROM device_shadows").fetchone()['c']
-        device_online = db.execute("SELECT COUNT(*) as c FROM device_shadows WHERE status='online'").fetchone()['c']
-        active_alerts = db.execute("SELECT COUNT(*) as c FROM alerts WHERE status='pending'").fetchone()['c']
-        open_orders = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status NOT IN ('closed')").fetchone()['c']
+        if site_ids is not None:
+            placeholders = ','.join('?' * len(site_ids))
+            total_sites = db.execute(f"SELECT COUNT(*) as c FROM sites WHERE id IN ({placeholders})", site_ids).fetchone()['c']
+            online_sites = db.execute(f"SELECT COUNT(*) as c FROM sites WHERE status='online' AND id IN ({placeholders})", site_ids).fetchone()['c']
+            device_total = db.execute(f"SELECT COUNT(*) as c FROM device_shadows WHERE site_id IN ({placeholders})", site_ids).fetchone()['c']
+            device_online = db.execute(f"SELECT COUNT(*) as c FROM device_shadows WHERE status='online' AND site_id IN ({placeholders})", site_ids).fetchone()['c']
+            active_alerts = db.execute(f"SELECT COUNT(*) as c FROM alerts WHERE status='pending' AND site_id IN ({placeholders})", site_ids).fetchone()['c']
+            open_orders = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE status NOT IN ('closed') AND site_id IN ({placeholders})", site_ids).fetchone()['c']
+        else:
+            total_sites = db.execute("SELECT COUNT(*) as c FROM sites").fetchone()['c']
+            online_sites = db.execute("SELECT COUNT(*) as c FROM sites WHERE status='online'").fetchone()['c']
+            device_total = db.execute("SELECT COUNT(*) as c FROM device_shadows").fetchone()['c']
+            device_online = db.execute("SELECT COUNT(*) as c FROM device_shadows WHERE status='online'").fetchone()['c']
+            active_alerts = db.execute("SELECT COUNT(*) as c FROM alerts WHERE status='pending'").fetchone()['c']
+            open_orders = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status NOT IN ('closed')").fetchone()['c']
         return jsonify({
             'total_sites': total_sites, 'online_sites': online_sites,
             'device_total': device_total, 'device_online': device_online,
@@ -1077,7 +1237,9 @@ def data_overview():
 
 # --- Alerts ---
 @app.route('/api/alerts')
+@login_required
 def get_alerts():
+    site_ids = _filter_site_ids()
     status = request.args.get('status', '')
     limit = request.args.get('limit', 50, type=int)
     date_from = request.args.get('date_from', '')
@@ -1089,6 +1251,10 @@ def get_alerts():
             WHERE 1=1
         """
         params = []
+        if site_ids is not None:
+            placeholders = ','.join('?' * len(site_ids))
+            q += f" AND a.site_id IN ({placeholders})"
+            params.extend(site_ids)
         if status:
             q += " AND a.status=?"
             params.append(status)
@@ -1293,7 +1459,9 @@ def get_timeline():
         return jsonify([dict(r) for r in db.execute(q, params).fetchall()])
 
 @app.route('/api/alerts/statistics')
+@login_required
 def alert_statistics():
+    site_ids = _filter_site_ids()
     status = request.args.get('status', '')
     status_where = ''
     params = []
@@ -1316,9 +1484,11 @@ def alert_statistics():
 
 # --- Work Orders ---
 @app.route('/api/workorders')
+@login_required
 def get_workorders():
     status = request.args.get('status', '')
     limit = request.args.get('limit', 50, type=int)
+    site_ids = _filter_site_ids()
     with get_db() as db:
         q = """
             SELECT w.*, s.name as site_name
@@ -1326,6 +1496,10 @@ def get_workorders():
             WHERE 1=1
         """
         params = []
+        if site_ids is not None:
+            ph = ','.join('?' * len(site_ids))
+            q += f" AND w.site_id IN ({ph})"
+            params.extend(site_ids)
         if status:
             q += " AND w.status=?"
             params.append(status)
@@ -1359,12 +1533,12 @@ def update_workorder_status(order_no):
     data = request.json
     new_status = data.get('status')
     valid_transitions = {
-        'pending': ['accepted'],
-        'accepted': ['generated', 'closed'],
+        'pending': ['accepted', 'closed'],
+        'accepted': ['generated', 'in_progress', 'closed'],
         'generated': ['dispatched'],
         'dispatched': ['in_progress'],
-        'in_progress': ['reviewing'],
-        'reviewing': ['acceptance'],
+        'in_progress': ['reviewing', 'closed', 'accepted'],
+        'reviewing': ['acceptance', 'closed'],
         'acceptance': ['closed'],
     }
     with get_db() as db:
@@ -1395,44 +1569,69 @@ def update_workorder_status(order_no):
         return jsonify({'success': True})
 
 @app.route('/api/workorders/statistics')
+@login_required
 def workorder_statistics():
+    site_ids = _filter_site_ids()
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) as c FROM work_orders").fetchone()['c']
-        by_status = {}
-        for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','acceptance','closed']:
-            by_status[st] = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status=?",(st,)).fetchone()['c']
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_new = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE date(created_at)=?",(today,)).fetchone()['c']
-        today_closed = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE date(resolved_at)=?",(today,)).fetchone()['c']
+        if site_ids is not None:
+            ph = ','.join('?' * len(site_ids))
+            total = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE site_id IN ({ph})", site_ids).fetchone()['c']
+            by_status = {}
+            for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','acceptance','closed']:
+                by_status[st] = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE status=? AND site_id IN ({ph})", [st] + site_ids).fetchone()['c']
+            today = datetime.now().strftime('%Y-%m-%d')
+            today_new = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE date(created_at)=? AND site_id IN ({ph})", [today] + site_ids).fetchone()['c']
+            today_closed = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE date(resolved_at)=? AND site_id IN ({ph})", [today] + site_ids).fetchone()['c']
+        else:
+            total = db.execute("SELECT COUNT(*) as c FROM work_orders").fetchone()['c']
+            by_status = {}
+            for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','acceptance','closed']:
+                by_status[st] = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status=?",(st,)).fetchone()['c']
+            today = datetime.now().strftime('%Y-%m-%d')
+            today_new = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE date(created_at)=?",(today,)).fetchone()['c']
+            today_closed = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE date(resolved_at)=?",(today,)).fetchone()['c']
         return jsonify({'total':total, 'by_status':by_status, 'today_new':today_new, 'today_closed':today_closed})
 
 # --- Inspections ---
 @app.route('/api/inspections')
+@login_required
 def get_inspections():
+    site_ids = _filter_site_ids()
     with get_db() as db:
-        rows = db.execute("""
+        q = """
             SELECT p.*, s.name as site_name, s.code as site_code,
                 (SELECT COUNT(*) FROM inspection_tasks t WHERE t.plan_id=p.id) as total_items,
                 (SELECT COUNT(*) FROM inspection_tasks t WHERE t.plan_id=p.id AND t.result IS NOT NULL) as completed_items
             FROM inspection_plans p LEFT JOIN sites s ON p.site_id=s.id
-            ORDER BY p.created_at DESC
-        """).fetchall()
+            WHERE 1=1
+        """
+        params = []
+        if site_ids is not None:
+            ph = ','.join('?' * len(site_ids))
+            q += f" AND p.site_id IN ({ph})"
+            params.extend(site_ids)
+        q += " ORDER BY p.created_at DESC"
+        rows = db.execute(q, params).fetchall()
         return jsonify([dict(r) for r in rows])
 
 @app.route('/api/inspections', methods=['POST'])
 def create_inspection():
     data = request.json
     with get_db() as db:
+        scheme_id = data.get('scheme_id')
         cursor = db.execute("""
-            INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date)
-            VALUES (?,?,?,?,?)
-        """, (data['plan_name'],data['site_id'],data['type'],data['start_date'],data['end_date']))
+            INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,period,description,scheme_id)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (data['plan_name'],data['site_id'],data['type'],data['start_date'],data['end_date'],data.get('period','once'),data.get('description',''),scheme_id))
         plan_id = cursor.lastrowid
-        # 生成检查项
-        check_items = data.get('check_items', [
-            '坝体外观检查','溢洪道检查','放水设施检查',
-            '监测设备检查','防汛物资检查','管理设施检查'
-        ])
+        # 生成检查项：优先从scheme_id加载，否则用check_items
+        check_items = data.get('check_items', [])
+        if scheme_id:
+            scheme_items = db.execute("SELECT check_item FROM inspection_scheme_items WHERE scheme_id=? ORDER BY sort_order",(scheme_id,)).fetchall()
+            if scheme_items:
+                check_items = [r['check_item'] for r in scheme_items]
+        if not check_items:
+            check_items = ['坝体外观检查','溢洪道检查','放水设施检查','监测设备检查','防汛物资检查','管理设施检查']
         for item in check_items:
             db.execute(
                 "INSERT INTO inspection_tasks (plan_id,site_id,check_item) VALUES (?,?,?)",
@@ -1478,13 +1677,23 @@ def update_inspection_task(task_id):
         return jsonify({'success': True})
 
 @app.route('/api/inspections/statistics')
+@login_required
 def inspection_statistics():
+    site_ids = _filter_site_ids()
     with get_db() as db:
-        total_plans = db.execute("SELECT COUNT(*) as c FROM inspection_plans").fetchone()['c']
-        done = db.execute("SELECT COUNT(*) as c FROM inspection_plans WHERE status='completed'").fetchone()['c']
-        total_tasks = db.execute("SELECT COUNT(*) as c FROM inspection_tasks").fetchone()['c']
-        done_tasks = db.execute("SELECT COUNT(*) as c FROM inspection_tasks WHERE result IS NOT NULL").fetchone()['c']
-        abnormal = db.execute("SELECT COUNT(*) as c FROM inspection_tasks WHERE result='abnormal'").fetchone()['c']
+        if site_ids is not None:
+            ph = ','.join('?' * len(site_ids))
+            total_plans = db.execute(f"SELECT COUNT(*) as c FROM inspection_plans WHERE site_id IN ({ph})", site_ids).fetchone()['c']
+            done = db.execute(f"SELECT COUNT(*) as c FROM inspection_plans WHERE status='completed' AND site_id IN ({ph})", site_ids).fetchone()['c']
+            total_tasks = db.execute(f"SELECT COUNT(*) as c FROM inspection_tasks WHERE site_id IN ({ph})", site_ids).fetchone()['c']
+            done_tasks = db.execute(f"SELECT COUNT(*) as c FROM inspection_tasks WHERE result IS NOT NULL AND site_id IN ({ph})", site_ids).fetchone()['c']
+            abnormal = db.execute(f"SELECT COUNT(*) as c FROM inspection_tasks WHERE result='abnormal' AND site_id IN ({ph})", site_ids).fetchone()['c']
+        else:
+            total_plans = db.execute("SELECT COUNT(*) as c FROM inspection_plans").fetchone()['c']
+            done = db.execute("SELECT COUNT(*) as c FROM inspection_plans WHERE status='completed'").fetchone()['c']
+            total_tasks = db.execute("SELECT COUNT(*) as c FROM inspection_tasks").fetchone()['c']
+            done_tasks = db.execute("SELECT COUNT(*) as c FROM inspection_tasks WHERE result IS NOT NULL").fetchone()['c']
+            abnormal = db.execute("SELECT COUNT(*) as c FROM inspection_tasks WHERE result='abnormal'").fetchone()['c']
         return jsonify({
             'total_plans':total_plans, 'completed_plans':done,
             'total_tasks':total_tasks, 'completed_tasks':done_tasks,
@@ -1492,7 +1701,146 @@ def inspection_statistics():
         })
 
 
-@app.route('/api/workorders/<order_no>', methods=['DELETE'])
+# ===================== 巡检方案管理 API =====================
+
+DEFAULT_CHECK_ITEMS = {
+    '水工建筑物': ['坝体/堤防外观检查','溢洪道/泄洪设施检查','放水涵洞/输水设施检查','护坡/护岸完整性检查','变形/位移观测'],
+    '金属结构': ['闸门启闭机运行检查','钢丝绳/吊杆磨损检查','止水橡胶/密封件检查'],
+    '监测设备': ['水位计运行状态及精度校验','雨量计清洁及校准','流量计/流速仪运行检查','土壤墒情传感器检查','蒸发皿清洁及补水'],
+    '通信设备': ['RTU遥测终端运行状态','通信模块(4G/北斗)信号检测','数据采集频率/完整性校验'],
+    '供电系统': ['太阳能板清洁及朝向检查','蓄电池电压/容量测试','充放电控制器检查','供电线路/防雷器检查'],
+    '安全防护': ['防雷接地电阻测试','围栏/门锁/警示标识','视频监控设备检查'],
+    '环境维护': ['站房/站院卫生清理','排水沟/截水沟疏通','杂草清除/防鼠防虫'],
+    '应急管理': ['备品备件库存清点','应急物资/工具检查','防汛预案/操作规程上墙'],
+    '自定义': []
+}
+
+DAY_ITEMS = ['水工建筑物','金属结构','监测设备','通信设备','环境维护']
+WEEK_ITEMS = ['水工建筑物','金属结构','监测设备','通信设备','供电系统','安全防护','环境维护','应急管理']
+MONTH_ITEMS = ['水工建筑物','金属结构','监测设备','通信设备','供电系统','安全防护','环境维护','应急管理']
+
+@app.route('/api/schemes/template')
+def download_scheme_template():
+    try: import openpyxl
+    except: return jsonify({'error':'openpyxl未安装'}),500
+    import tempfile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = '巡检方案模板'
+    for col, h in enumerate(['分类','检查项','日方案','周方案','月方案'],1):
+        ws.cell(row=1,column=col,value=h); ws.cell(row=1,column=col).font = openpyxl.styles.Font(bold=True)
+    row = 2
+    for cat in DEFAULT_CHECK_ITEMS:
+        if not DEFAULT_CHECK_ITEMS[cat]: continue
+        for item in DEFAULT_CHECK_ITEMS[cat]:
+            ws.cell(row=row,column=1,value=cat); ws.cell(row=row,column=2,value=item)
+            ws.cell(row=row,column=3,value='✓' if cat in DAY_ITEMS else '')
+            ws.cell(row=row,column=4,value='✓' if cat in WEEK_ITEMS else '')
+            ws.cell(row=row,column=5,value='✓' if cat in MONTH_ITEMS else '')
+            row += 1
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    wb.save(tmp.name); tmp.close()
+    return send_file(tmp.name, as_attachment=True, download_name='巡检方案导入模板.xlsx')
+
+@app.route('/api/schemes/import', methods=['POST'])
+def import_schemes():
+    try: import openpyxl
+    except: return jsonify({'error':'openpyxl未安装'}),500
+    file = request.files.get('file')
+    if not file: return jsonify({'error':'请上传文件'}),400
+    wb = openpyxl.load_workbook(file); ws = wb.active
+    def _yes(v): return str(v).strip() in ('✓','√','Y','y','1','是','yes')
+    created = 0
+    with get_db() as db:
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row or len(row)<2: continue
+            site_name = str(row[0]).strip() if row[0] else ''
+            check_item = str(row[1]).strip() if row[1] else ''
+            cat = str(row[2]).strip() if len(row)>2 and row[2] else ''
+            day_flag = row[3] if len(row)>3 and row[3] else ''; week_flag = row[4] if len(row)>4 and row[4] else ''; month_flag = row[5] if len(row)>5 and row[5] else ''
+            if not site_name or not check_item: continue
+            site = db.execute("SELECT id FROM sites WHERE name LIKE ?",(f'%{site_name}%',)).fetchone()
+            if not site: continue; sid = site['id']
+            for period, flag, label in [('daily',day_flag,'日巡检方案'),('weekly',week_flag,'周巡检方案'),('monthly',month_flag,'月巡检方案')]:
+                if not _yes(flag): continue
+                db.execute("INSERT OR IGNORE INTO inspection_schemes (site_id,period,name) VALUES (?,?,?)",(sid,period,f'{site_name}-{label}'))
+                scheme_id = db.execute("SELECT id FROM inspection_schemes WHERE site_id=? AND period=?",(sid,period)).fetchone()
+                if scheme_id:
+                    sc_id = scheme_id['id']
+                    db.execute("INSERT OR IGNORE INTO inspection_scheme_items (scheme_id,category,check_item,sort_order) SELECT ?,?,?,COALESCE((SELECT MAX(sort_order)+1 FROM inspection_scheme_items WHERE scheme_id=?),0)",(sc_id,cat,check_item,sc_id))
+                    created += 1
+        db.commit()
+    return jsonify({'success':True,'created':created})
+
+@app.route('/api/sites/<int:site_id>/schemes')
+def get_site_schemes(site_id):
+    with get_db() as db:
+        schemes = db.execute("SELECT s.*,(SELECT COUNT(*) FROM inspection_scheme_items i WHERE i.scheme_id=s.id) as item_count FROM inspection_schemes s WHERE s.site_id=? ORDER BY CASE s.period WHEN 'daily' THEN 1 WHEN 'weekly' THEN 2 ELSE 3 END",(site_id,)).fetchall()
+        return jsonify([dict(r) for r in schemes])
+
+@app.route('/api/schemes/<int:scheme_id>')
+def get_scheme_detail(scheme_id):
+    with get_db() as db:
+        scheme = db.execute("SELECT * FROM inspection_schemes WHERE id=?",(scheme_id,)).fetchone()
+        if not scheme: return jsonify({'error':'方案不存在'}),404
+        items = db.execute("SELECT * FROM inspection_scheme_items WHERE scheme_id=? ORDER BY sort_order",(scheme_id,)).fetchall()
+        result = dict(scheme); result['items']=[dict(r) for r in items]
+        return jsonify(result)
+
+@app.route('/api/schemes/<int:scheme_id>', methods=['PUT'])
+def update_scheme(scheme_id):
+    data = request.json
+    with get_db() as db:
+        scheme = db.execute("SELECT * FROM inspection_schemes WHERE id=?",(scheme_id,)).fetchone()
+        if not scheme: return jsonify({'error':'方案不存在'}),404
+        if 'name' in data: db.execute("UPDATE inspection_schemes SET name=?,updated_at=datetime('now','localtime') WHERE id=?",(data['name'],scheme_id))
+        if 'items' in data:
+            db.execute("DELETE FROM inspection_scheme_items WHERE scheme_id=?",(scheme_id,))
+            for idx,item in enumerate(data['items']):
+                db.execute("INSERT INTO inspection_scheme_items (scheme_id,category,check_item,sort_order,is_required) VALUES (?,?,?,?,?)",(scheme_id,item.get('category',''),item.get('check_item',''),idx,item.get('is_required',1)))
+        db.commit()
+        return jsonify({'success':True})
+
+@app.route('/api/schemes/<int:scheme_id>/items', methods=['POST'])
+def add_scheme_item(scheme_id):
+    data = request.json
+    item_name = data.get('check_item','').strip()
+    if not item_name: return jsonify({'error':'检查项不能为空'}),400
+    with get_db() as db:
+        max_order = db.execute("SELECT COALESCE(MAX(sort_order),-1)+1 as n FROM inspection_scheme_items WHERE scheme_id=?",(scheme_id,)).fetchone()['n']
+        db.execute("INSERT INTO inspection_scheme_items (scheme_id,category,check_item,sort_order) VALUES (?,?,?,?)",(scheme_id,data.get('category','自定义'),item_name,max_order))
+        db.execute("UPDATE inspection_schemes SET updated_at=datetime('now','localtime') WHERE id=?",(scheme_id,))
+        db.commit()
+        return jsonify({'success':True})
+
+@app.route('/api/schemes/items/<int:item_id>', methods=['DELETE'])
+def delete_scheme_item_ep(item_id):
+    with get_db() as db:
+        db.execute("DELETE FROM inspection_scheme_items WHERE id=?",(item_id,))
+        db.commit()
+        return jsonify({'success':True})
+
+@app.route('/api/inspections/auto-generate', methods=['POST'])
+def auto_generate_inspections():
+    with get_db() as db:
+        schemes = db.execute("SELECT * FROM inspection_schemes WHERE status='active'").fetchall()
+        generated = 0; today = datetime.now().strftime('%Y-%m-%d')
+        for scheme in schemes:
+            period = scheme['period']
+            if period == 'daily': pass
+            elif period == 'weekly' and datetime.now().weekday() != 0: continue
+            elif period == 'monthly' and datetime.now().day != 1: continue
+            elif period not in ('daily','weekly','monthly'): continue
+            existing = db.execute("SELECT id FROM inspection_plans WHERE site_id=? AND scheme_id=? AND start_date=?",(scheme['site_id'],scheme['id'],today)).fetchone()
+            if existing: continue
+            db.execute("INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,status,scheme_id) VALUES (?,?,?,?,?,?,?)",(scheme['name'],scheme['site_id'],period,today,today,'pending',scheme['id']))
+            plan_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            items = db.execute("SELECT * FROM inspection_scheme_items WHERE scheme_id=? ORDER BY sort_order",(scheme['id'],)).fetchall()
+            for item in items:
+                db.execute("INSERT INTO inspection_tasks (plan_id,site_id,check_item) VALUES (?,?,?)",(plan_id,scheme['site_id'],item['check_item']))
+            generated += 1
+        db.commit()
+        return jsonify({'success':True,'generated':generated})
+
+# --- Workorder management ---@app.route('/api/workorders/<order_no>', methods=['DELETE'])
 def delete_workorder(order_no):
     """删除工单（仅支持待受理或已关闭的工单）"""
     with get_db() as db:
@@ -1830,6 +2178,7 @@ def convert_hotline_to_order(event_id):
 
 # --- Dashboard ---
 @app.route('/api/dashboard/summary')
+@login_required
 def dashboard_summary():
     with get_db() as db:
         overview = {
@@ -2043,6 +2392,7 @@ def water_quality():
 
 # --- 设备状态监控 (新增) ---
 @app.route('/api/devices/status')
+@login_required
 def device_status():
     """设备心跳状态汇总：在线/离线统计、各类型统计、离线设备明细"""
     with get_db() as db:
@@ -2237,6 +2587,151 @@ def backfill_history(hours=72):
         print(f"[Backfill] 完成！共 {total} 条历史数据")
 
 
+# ===================== 认证API端点 =====================
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    if not username or not password:
+        return jsonify({'error': '请输入用户名和密码'}), 400
+    with get_db() as db:
+        user = db.execute("SELECT id, username, password_hash, role, real_name, phone, status FROM users WHERE username=? AND status='active'",
+                          (username,)).fetchone()
+    if not user or user['password_hash'] != _hash_pw(password):
+        return jsonify({'error': '用户名或密码错误'}), 401
+    token = secrets.token_urlsafe(32)
+    _tokens[token] = {
+        'id': user['id'],
+        'username': user['username'],
+        'role': user['role'],
+        'real_name': user['real_name'],
+        'phone': user['phone'] or '',
+    }
+    # 获取此用户可管理的站点列表
+    with get_db() as db:
+        site_rows = db.execute("SELECT s.id, s.name, s.code, s.type FROM sites s JOIN user_sites us ON s.id=us.site_id WHERE us.user_id=?", (user['id'],)).fetchall()
+    sites = [{'id': r['id'], 'name': r['name'], 'code': r['code'], 'type': r['type']} for r in site_rows]
+    return jsonify({
+        'success': True,
+        'token': token,
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'role': user['role'],
+            'real_name': user['real_name'],
+            'phone': user['phone'] or '',
+        },
+        'sites_count': len(sites),
+        'sites': sites,
+    })
+
+@app.route('/api/auth/me')
+@login_required
+def api_me():
+    return jsonify({
+        'success': True,
+        'user': g.current_user,
+        'site_ids': g.user_site_ids,
+    })
+
+
+# ===================== 用户管理API（管理员） =====================
+
+@app.route('/api/users')
+@login_required
+def api_users():
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '无权限'}), 403
+    with get_db() as db:
+        rows = db.execute("SELECT id, username, role, real_name, phone, status, created_at FROM users ORDER BY id").fetchall()
+    users = []
+    for r in rows:
+        with get_db() as db2:
+            cnt = db2.execute("SELECT COUNT(*) as c FROM user_sites WHERE user_id=?", (r['id'],)).fetchone()['c']
+        users.append({
+            'id': r['id'], 'username': r['username'], 'role': r['role'],
+            'real_name': r['real_name'], 'phone': r['phone'] or '',
+            'status': r['status'], 'sites_count': cnt,
+            'created_at': r['created_at'],
+        })
+    return jsonify(users)
+
+@app.route('/api/users/<int:uid>/sites', methods=['GET'])
+@login_required
+def api_user_sites(uid):
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '无权限'}), 403
+    with get_db() as db:
+        sids = [r['site_id'] for r in db.execute("SELECT site_id FROM user_sites WHERE user_id=?", (uid,)).fetchall()]
+    return jsonify({'site_ids': sids})
+
+@app.route('/api/users/<int:uid>/sites', methods=['PUT'])
+@login_required
+def api_update_user_sites(uid):
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '无权限'}), 403
+    data = request.get_json() or {}
+    site_ids = data.get('site_ids', [])
+    if not isinstance(site_ids, list):
+        return jsonify({'error': 'site_ids格式错误'}), 400
+    with get_db() as db:
+        db.execute("DELETE FROM user_sites WHERE user_id=?", (uid,))
+        for sid in site_ids:
+            db.execute("INSERT OR IGNORE INTO user_sites (user_id,site_id) VALUES (?,?)", (uid, sid))
+        db.commit()
+    return jsonify({'success': True, 'count': len(site_ids)})
+
+@app.route('/api/users/<int:uid>/reset-password', methods=['PUT'])
+@login_required
+def api_reset_password(uid):
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '无权限'}), 403
+    data = request.get_json() or {}
+    new_pw = data.get('new_password', 'yw123456')
+    with get_db() as db:
+        db.execute("UPDATE users SET password_hash=? WHERE id=?", (_hash_pw(new_pw), uid))
+        db.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/users/<int:uid>/status', methods=['PUT'])
+@login_required
+def api_user_status(uid):
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '无权限'}), 403
+    data = request.get_json() or {}
+    new_status = data.get('status', 'active')
+    with get_db() as db:
+        db.execute("UPDATE users SET status=? WHERE id=?", (new_status, uid))
+        db.commit()
+    return jsonify({'success': True})
+
+
+# ===================== 站点过滤辅助函数 =====================
+
+def _filter_by_user(where_clause='', table_prefix=''):
+    """为API查询注入站点过滤条件。返回 (where_extra, params)
+    管理员不限制，操作员限制为分配的站点。
+    在路由函数中使用：在原始WHERE后加上此函数的返回。
+    """
+    site_ids = getattr(g, 'user_site_ids', None)
+    if site_ids is None:
+        return '', []
+    prefix = table_prefix + '.' if table_prefix else ''
+    site_condition = f"{prefix}site_id IN ({','.join('?' * len(site_ids))})" if site_ids else '1=0'
+    extra = f" AND {site_condition}" if where_clause else f" WHERE {site_condition}"
+    return extra, site_ids
+
+
+def _filter_site_ids():
+    """返回当前用户可见的site_id列表（管理员返回空=全部）"""
+    site_ids = getattr(g, 'user_site_ids', None)
+    if site_ids is None:
+        return None  # None = 不过滤
+    return site_ids
+
+
 # ===================== 前端静态文件服务 =====================
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
 
@@ -2263,6 +2758,7 @@ if __name__ == '__main__':
     seed_alerts()
     seed_maintenance()
     seed_maintenance_templates()
+    seed_users()
     backfill_history(72)
     # 生成初始数据（让趋势跟踪生效）
     for _ in range(6):
@@ -2292,7 +2788,7 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"[Cleanup] 告警清理跳过: {e}")
     # 每30秒自动生成数据
-    scheduler.add_job(generate_sensor_data, 'interval', seconds=30, id='simulator')
+    scheduler.add_job(generate_sensor_data, 'interval', seconds=60, id='simulator')
     print("[Server] 水利运维智慧运营平台 启动成功!")
     print("[Server] API: http://localhost:5000/api/health")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)

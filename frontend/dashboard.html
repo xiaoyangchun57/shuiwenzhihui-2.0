@@ -18,6 +18,19 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
 /* 外层发光边框效果 */
 .viewport-frame{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:900;border:1px solid rgba(0,200,180,0.12);box-shadow:inset 0 0 60px rgba(0,200,180,0.04)}
 
+/* ========== 登录页 ========== */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#030e1f;z-index:9999;display:flex;align-items:center;justify-content:center}
+.login-card{background:linear-gradient(135deg,rgba(6,24,52,0.98),rgba(4,14,34,0.95));border:1px solid rgba(0,200,180,0.2);border-radius:12px;padding:40px 36px;width:360px;box-shadow:0 0 40px rgba(0,200,180,0.1)}
+.login-card h2{text-align:center;color:#00e0c0;font-size:22px;font-weight:500;margin-bottom:6px;letter-spacing:2px}
+.login-card .lc-sub{text-align:center;color:#5ea8c8;font-size:12px;margin-bottom:28px}
+.login-card .form-row{margin-bottom:16px}
+.login-card .form-row label{display:block;font-size:12px;color:#70b0d8;margin-bottom:4px}
+.login-card input{width:100%;padding:10px 12px;border:1px solid rgba(0,200,180,0.15);border-radius:6px;background:rgba(0,200,180,0.03);color:#d0e8ff;font-size:14px;outline:none}
+.login-card input:focus{border-color:rgba(0,200,180,0.4);box-shadow:0 0 8px rgba(0,200,180,0.1)}
+.login-card .login-btn{width:100%;padding:10px;margin-top:8px;border:none;border-radius:6px;background:linear-gradient(135deg,rgba(0,200,180,0.2),rgba(0,200,180,0.1));color:#00e0c0;font-size:15px;cursor:pointer;border:1px solid rgba(0,200,180,0.2)}
+.login-card .login-btn:hover{background:linear-gradient(135deg,rgba(0,200,180,0.3),rgba(0,200,180,0.15));border-color:rgba(0,200,180,0.3)}
+.login-card .lc-err{color:#ff4760;font-size:12px;text-align:center;margin-top:10px;display:none}
+
 /* ========== 顶部导航 - 立体按钮风格，无图标 ========== */
 .nav-bar{height:50px;background:linear-gradient(180deg,rgba(6,24,52,0.98) 0%,rgba(4,14,34,0.95) 100%);border-bottom:1px solid rgba(0,180,160,0.15);display:flex;align-items:center;padding:0 24px;flex-shrink:0;z-index:200;position:relative}
 .nav-bar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,200,180,0.5),transparent)}
@@ -33,6 +46,13 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
 .nav-stat .nsn.danger{color:#ff4760}
 .nav-stat .nsn.warn{color:#ffa040}
 .nav-clock{font-size:14px;color:#5ea8c8;margin-left:16px;white-space:nowrap;letter-spacing:1px}
+/* 导航用户信息 */
+.nav-user{margin-left:16px;display:flex;align-items:center;gap:8px;padding:3px 12px;background:rgba(0,200,180,0.06);border:1px solid rgba(0,200,180,0.1);border-radius:3px;cursor:pointer;position:relative}
+.nav-user .nu-name{font-size:13px;color:#00e0c0}
+.nav-user .nu-role{font-size:10px;color:#5ea8c8;padding:1px 4px;border-radius:2px;background:rgba(0,200,180,0.1)}
+.nav-user .nu-logout{display:none;position:absolute;top:100%;right:0;background:rgba(6,24,52,0.98);border:1px solid rgba(255,71,96,0.2);border-radius:3px;padding:4px 12px;color:#ff4760;font-size:12px;white-space:nowrap}
+.nav-user:hover .nu-logout{display:block}
+.nu-logout:hover{background:rgba(255,71,96,0.1)}
 /* 导航下拉菜单 */
 .nav-dropdown{position:relative}
 .nav-dd-menu{display:none;position:absolute;top:100%;left:0;min-width:120px;background:rgba(6,24,52,0.98);border:1px solid rgba(0,200,180,0.15);border-radius:4px;z-index:999;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4)}
@@ -285,6 +305,19 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
 <div id="app">
   <div class="viewport-frame"></div>
 
+  <!-- 登录覆盖层（初始显示） -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-card">
+      <h2>水利智慧运营平台</h2>
+      <div class="lc-sub">请登录系统</div>
+      <div class="form-row"><label>用户名</label><input id="login-username" placeholder="请输入用户名" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="form-row"><label>密码</label><input id="login-password" type="password" placeholder="请输入密码" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="lc-err" id="login-err"></div>
+      <button class="login-btn" id="login-btn" onclick="doLogin()">登 录</button>
+      <div style="text-align:center;margin-top:16px;font-size:10px;color:#4a8aaa">演示账号: admin/admin123 · zhangsan/yw123456 · lisi/yw123456</div>
+    </div>
+  </div>
+
   <!-- 导航栏 — 无图标、纯文字、发光效果 -->
   <div class="nav-bar">
     <div class="nav-title">水利智慧运营平台</div>
@@ -298,6 +331,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
         <div class="nav-dd-menu" id="nav-dd-menu">
           <div class="nav-dd-item" onclick="switchNav('maintenance')">运维管理</div>
           <div class="nav-dd-item" onclick="switchNavDD('waterlevel')">水位校验</div>
+          <div class="nav-dd-item" id="nav-dd-users" onclick="switchNav('users')" style="display:none">人员管理</div>
         </div>
       </div>
     </div>
@@ -307,6 +341,11 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
       <div class="nav-stat"><span class="nsn warn" id="ns-orders">0</span><span class="nsl">工单</span></div>
     </div>
     <div class="nav-clock" id="nav-clock"></div>
+    <div class="nav-user" id="nav-user" style="display:none">
+      <span class="nu-name" id="nu-name">--</span>
+      <span class="nu-role" id="nu-role">--</span>
+      <span class="nu-logout" onclick="doLogout()">退出登录</span>
+    </div>
   </div>
 
   <!-- 内容区 -->
@@ -366,7 +405,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
     </div>
 
     <!-- 站点 -->
-    <div class="tab-panel" id="panel-sites"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>站点列表</div><div class="filter-bar"><input class="fi" placeholder="搜索名称/编码..." oninput="filterTable('st-body',this.value,1);filterTable('st-body',this.value,0)" style="flex:1"><select class="fi-s" onchange="filterEq('st-body',2,this.value)"><option value="">全部类型</option><option value="雨量站">雨量站</option><option value="水位站">水位站</option><option value="水文站">水文站</option><option value="墒情站">墒情站</option><option value="蒸发站">蒸发站</option></select></div><table><thead><tr><th onclick="sortTable('st-body',0)">编码 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('st-body',1)">名称 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('st-body',2)">类型 <span class="srt">&#9650;&#9660;</span></th><th>状态</th><th onclick="sortTable('st-body',4)">设备 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('st-body',5)">负责人 <span class="srt">&#9650;&#9660;</span></th></tr></thead><tbody id="st-body"></tbody></table></div></div></div>
+    <div class="tab-panel" id="panel-sites"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>站点列表<div style="float:right;display:flex;gap:6px"><button class="btn btn-xs" style="color:#ffa040;border:1px solid rgba(255,160,64,0.2)" onclick="document.getElementById('global-scheme-import').click()">📤 导入方案</button><button class="btn btn-xs" style="color:#5ea8c8;border:1px solid rgba(94,168,200,0.2)" onclick="_downloadTemplate()">📥 下载模板</button><input type="file" id="global-scheme-import" accept=".xlsx" style="display:none" onchange="_globalUploadScheme(this)"></div></div><div class="filter-bar"><input class="fi" placeholder="搜索名称/编码..." oninput="filterTable('st-body',this.value,1);filterTable('st-body',this.value,0)" style="flex:1"><select class="fi-s" onchange="filterEq('st-body',2,this.value)"><option value="">全部类型</option><option value="雨量站">雨量站</option><option value="水位站">水位站</option><option value="水文站">水文站</option><option value="墒情站">墒情站</option><option value="蒸发站">蒸发站</option></select></div><table><thead><tr><th onclick="sortTable('st-body',0)">编码 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('st-body',1)">名称 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('st-body',2)">类型 <span class="srt">&#9650;&#9660;</span></th><th>状态</th><th onclick="sortTable('st-body',4)">设备 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('st-body',5)">负责人 <span class="srt">&#9650;&#9660;</span></th></tr></thead><tbody id="st-body"></tbody></table></div></div></div>
     <!-- 预警 -->
     <div class="tab-panel" id="panel-alerts"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>预警管理 <span style="font-size:13px;color:#5ea8c8" id="al-stat"></span></div><div style="display:flex;gap:8px;padding:8px 12px 0"><div class="al-metrics" id="al-metrics" style="display:flex;gap:8px;flex:1;flex-wrap:wrap"></div><div style="width:130px;height:80px;flex-shrink:0"><canvas id="al-chart" role="img" aria-label="告警级别分布图"></canvas></div></div><div class="filter-bar"><input class="fi" placeholder="搜索站点/信息..." oninput="filterTable('al-body',this.value,2);filterTable('al-body',this.value,5)" style="flex:1"><select class="fi-s" id="al-flt-level" onchange="ldAl()"><option value="">全部级别</option><option value="红色">红色</option><option value="橙色">橙色</option><option value="黄色">黄色</option></select><select class="fi-s" id="al-flt-status" onchange="ldAl()"><option value="pending">待处理</option><option value="">全部状态</option><option value="acknowledged">已确认</option><option value="resolved">已办结</option></select><select class="fi-s" id="al-flt-date" onchange="ldAl()"><option value="">全部时间</option><option value="today">今天</option><option value="week">本周</option><option value="month">本月</option></select><div class="batch-bar" id="al-batch" style="display:none;gap:6px"><span style="color:#5ea8c8;font-size:11px" id="al-sel-cnt">已选0项</span><button class="btn btn-success btn-xs" onclick="batchResolve()">批量办结</button><button class="btn btn-warning btn-xs" onclick="batchAl('urge')">批量督办</button><button class="btn btn-primary btn-xs" onclick="batchAl('convert')">批量转工单</button><button class="btn btn-xs" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="clrAlSel()">取消选择</button></div></div><table><thead><tr><th style="width:28px"><input type="checkbox" onchange="alSelAll(this.checked)" id="al-cb-all"></th><th onclick="sortTable('al-body',1)">级别 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('al-body',2)">站点 <span class="srt">&#9650;&#9660;</span></th><th>指标</th><th onclick="sortTable('al-body',4)">值 <span class="srt">&#9650;&#9660;</span></th><th>信息</th><th onclick="sortTable('al-body',6)">状态 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('al-body',7)">时间 <span class="srt">&#9650;&#9660;</span></th><th>操作</th></tr></thead><tbody id="al-body"></tbody></table></div></div></div>
     <!-- 工单 -->
@@ -379,15 +418,24 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#030e1f;o
     </div></div></div></div>
     <!-- 水位校验 -->
     <div class="tab-panel" id="panel-waterlevel"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>水位差值校验 <button class="btn btn-primary btn-sm" onclick="autoWlc()">自动校验</button><button class="btn btn-warning btn-sm" onclick="wlcToOrder()">异常转工单</button></div><div class="filter-bar"><input class="fi" placeholder="搜索站点..." oninput="filterTable('wc-body',this.value,1)" style="flex:1"><select class="fi-s" onchange="filterEq('wc-body',4,this.value)"><option value="">全部状态</option><option value="正常">正常</option><option value="异常">异常</option></select></div><table><thead><tr><th onclick="sortTable('wc-body',0)">编号 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('wc-body',1)">站点 <span class="srt">&#9650;&#9660;</span></th><th>人工水位</th><th>遥测水位</th><th onclick="sortTable('wc-body',4)">差值 <span class="srt">&#9650;&#9660;</span></th><th>状态</th><th>调整操作</th><th onclick="sortTable('wc-body',7)">时间 <span class="srt">&#9650;&#9660;</span></th></tr></thead><tbody id="wc-body"></tbody></table></div></div></div>
+    <!-- 人员管理（管理员专用） -->
+    <div class="tab-panel" id="panel-users"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>人员管理</div>
+    <div style="padding:12px">
+      <table><thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>电话</th><th>分配站点数</th><th>状态</th><th>操作</th></tr></thead><tbody id="users-body"></tbody></table>
+    </div></div></div></div>
     </div>
 </div>
 
 <script>
 const API='/api';
-// 带超时的 fetch 封装（默认10秒超时）
-async function af(u,to=30000){try{const c=new AbortController();setTimeout(()=>c.abort(),to);const r=await fetch(API+u,{signal:c.signal});return await r.json()}catch(e){return null}}
-async function afP(u,d){try{const c=new AbortController();setTimeout(()=>c.abort(),30000);const r=await fetch(API+u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d),signal:c.signal});return await r.json()}catch(e){return null}}
-async function afPt(u,d){try{const c=new AbortController();setTimeout(()=>c.abort(),30000);const r=await fetch(API+u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d),signal:c.signal});return await r.json()}catch(e){return null}}
+// 认证Token管理
+let _token=localStorage.getItem('water_ops_token')||'';
+let _user=null;
+function _authHdrs(){const h={};if(_token)h['Authorization']='Bearer '+_token;return h}
+// 带超时和认证头的 fetch 封装（默认30秒超时）
+async function af(u,to=30000){try{const c=new AbortController();setTimeout(()=>c.abort(),to);const r=await fetch(API+u,{signal:c.signal,headers:_authHdrs()});if(r.status===401){_token='';localStorage.removeItem('water_ops_token');showLogin();return null}return await r.json()}catch(e){return null}}
+async function afP(u,d){try{const c=new AbortController();setTimeout(()=>c.abort(),30000);const r=await fetch(API+u,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(d),signal:c.signal});if(r.status===401){_token='';localStorage.removeItem('water_ops_token');showLogin();return null}return await r.json()}catch(e){return null}}
+async function afPt(u,d){try{const c=new AbortController();setTimeout(()=>c.abort(),30000);const r=await fetch(API+u,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(d),signal:c.signal});if(r.status===401){_token='';localStorage.removeItem('water_ops_token');showLogin();return null}return await r.json()}catch(e){return null}}
 const TM={rainfall:'雨量站',water_level:'水位站',hydrology:'水文站',soil_moisture:'墒情站',evaporation:'蒸发站'};
 const SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
 const LM={normal:'一般',urgent:'紧急',critical:'重大'};
@@ -398,6 +446,91 @@ const ITM={daily:'日常',weekly:'定期',monthly:'月度',special:'专项'};
 const CLR={rainfall:'#4090ff',water_level:'#00e0c0',hydrology:'#2ea080',soil_moisture:'#ffa040',evaporation:'#a855f7'};
 const METRIC_CN={water_level:'水位',rainfall:'雨量',soil_moisture:'墒情',evaporation:'蒸发'};
 let charts={},map,markerCluster;
+
+// ========== 登录系统 ==========
+function showLogin(){
+  document.getElementById('login-overlay').style.display='flex';
+  document.getElementById('login-err').style.display='none';
+}
+function hideLogin(){
+  document.getElementById('login-overlay').style.display='none';
+}
+async function doLogin(){
+  const u=document.getElementById('login-username').value.trim();
+  const p=document.getElementById('login-password').value.trim();
+  if(!u||!p){document.getElementById('login-err').textContent='请输入用户名和密码';document.getElementById('login-err').style.display='block';return}
+  document.getElementById('login-btn').disabled=true;document.getElementById('login-btn').textContent='登录中...';
+  try{
+    const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const d=await r.json();
+    if(d.success){
+      _token=d.token;_user=d.user;
+      localStorage.setItem('water_ops_token',_token);
+      hideLogin();
+      document.getElementById('login-err').style.display='none';
+      // 显示用户信息
+      document.getElementById('nav-user').style.display='flex';
+      document.getElementById('nu-name').textContent=d.user.real_name;
+      document.getElementById('nu-role').textContent=d.user.role==='admin'?'管理员':'运维员';
+      // 管理员显示人员管理
+      if(d.user.role==='admin')document.getElementById('nav-dd-users').style.display='block';
+      // 重新加载所有数据
+      safeInit();
+    }else{
+      document.getElementById('login-err').textContent=d.error||'登录失败';
+      document.getElementById('login-err').style.display='block';
+    }
+  }catch(e){document.getElementById('login-err').textContent='网络错误';document.getElementById('login-err').style.display='block'}
+  document.getElementById('login-btn').disabled=false;document.getElementById('login-btn').textContent='登 录';
+}
+function doLogout(){
+  _token='';_user=null;
+  localStorage.removeItem('water_ops_token');
+  showLogin();
+  document.getElementById('nav-user').style.display='none';
+  document.getElementById('nav-dd-users').style.display='none';
+}
+// 检查已有token
+async function checkAuth(){
+  if(!_token){showLogin();return false}
+  try{
+    const r=await fetch(API+'/auth/me',{headers:Object.assign({'Content-Type':'application/json'},_authHdrs())});
+    if(!r.ok){_token='';localStorage.removeItem('water_ops_token');showLogin();return false}
+    const d=await r.json();
+    if(d.success){_user=d.user;hideLogin();document.getElementById('nav-user').style.display='flex';document.getElementById('nu-name').textContent=d.user.real_name;document.getElementById('nu-role').textContent=d.user.role==='admin'?'管理员':'运维员';if(d.user.role==='admin')document.getElementById('nav-dd-users').style.display='block';return true}
+    _token='';localStorage.removeItem('water_ops_token');showLogin();return false
+  }catch(e){return false}
+}
+
+// ========== 人员管理面板 ==========
+async function ldUsers(){
+  const d=await af('/users');if(!d)return;
+  document.getElementById('users-body').innerHTML=d.map(u=>`<tr><td>${u.username}</td><td>${u.real_name}</td><td>${u.role==='admin'?'管理员':'运维员'}</td><td>${u.phone||'-'}</td><td>${u.sites_count||0}</td><td><span class="badge badge-${u.status==='active'?'grn':'org'}">${u.status==='active'?'正常':'禁用'}</span></td><td><button class="btn btn-primary btn-xs" onclick="showUserSites(${u.id},'${u.real_name}')">分配站点</button><button class="btn btn-warning btn-xs" onclick="resetUserPw(${u.id},'${u.real_name}')">重置密码</button></td></tr>`).join('')}
+async function showUserSites(uid,uname){
+  const r=await af('/users/'+uid+'/sites');if(!r)return;
+  const all=await af('/sites');if(!all)return;
+  const assigned=new Set(r.site_ids||[]);
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  let html='<div class="modal" style="max-width:800px;max-height:500px"><h4>&#187;&#187;&#187; 站点分配: '+uname+'</h4><div style="margin-bottom:6px"><input class="fi" placeholder="搜索站点..." oninput="filterUserSites(this.value)" style="width:250px"><button class="btn btn-primary btn-sm" onclick="doSaveUserSites('+uid+')" style="margin-left:8px">保存分配</button></div><div id="us-sites-list" style="max-height:350px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:2px">';
+  for(var i=0;i<all.length;i++){var s=all[i];html+='<label style="width:170px;padding:3px 6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;border-radius:2px;background:'+(assigned.has(s.id)?'rgba(0,200,180,0.08)':'transparent')+'"><input type="checkbox" class="us-cb" value="'+s.id+'" '+(assigned.has(s.id)?'checked':'')+'>'+s.name+'</label>'}
+  html+='</div><br><button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button></div>';
+  ov.innerHTML=html;document.body.appendChild(ov)
+}
+function filterUserSites(q){
+  var v=q.toLowerCase();document.querySelectorAll('#us-sites-list label').forEach(function(l){l.style.display=l.textContent.toLowerCase().includes(v)?'flex':'none'})
+}
+async function doSaveUserSites(uid){
+  var ids=Array.from(document.querySelectorAll('.us-cb:checked')).map(c=>parseInt(c.value));
+  var r=await afPt('/users/'+uid+'/sites',{site_ids:ids});
+  if(r&&r.success){showToast('分配已保存');document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldUsers()}
+}
+async function resetUserPw(uid,uname){
+  if(!confirm('确认重置 '+uname+' 的密码为 yw123456 ？'))return;
+  var r=await afPt('/users/'+uid+'/reset-password',{new_password:'yw123456'});
+  if(r&&r.success)showToast(uname+' 密码已重置为 yw123456');else showToast('重置失败','error')
+}
+
+// ========== 面板切换 ==========
 const shpSvg={
   rainfall:'<svg viewBox="0 0 16 16" width="16" height="16"><path d="M8 1C8 1 2 10 2 11.5A6 6 0 1 0 14 11.5C14 10 8 1 8 1z" fill="currentColor"/><path d="M5 13l2-4M9 13l2-4" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>',
   water_level:'<svg viewBox="0 0 16 16" width="16" height="16"><path d="M1 10q3-4 7 0q4 4 7 0q3-4 7 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 13h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
@@ -406,7 +539,7 @@ const shpSvg={
   evaporation:'<svg viewBox="0 0 16 16" width="16" height="16"><path d="M8 1v6M4 3l4 4l4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 11h6M4 14h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
 };
 
-function switchNav(t){document.querySelectorAll('.nav-tab').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.nav-dd-item').forEach(e=>e.classList.remove('active'));const navEl=document.querySelector(`[onclick*="${t}"]`);if(navEl)navEl.classList.add('active');const panel=document.getElementById('panel-'+t);if(panel)panel.classList.add('active');if(t==='cockpit'){setTimeout(()=>map&&map.invalidateSize(),150);cockpitLoad()}else if(t==='maintenance'){setTimeout(()=>ldMp(),100)}else if(t==='waterlevel')ldWc()}
+function switchNav(t){document.querySelectorAll('.nav-tab').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.nav-dd-item').forEach(e=>e.classList.remove('active'));const navEl=document.querySelector(`[onclick*="${t}"]`);if(navEl)navEl.classList.add('active');const panel=document.getElementById('panel-'+t);if(panel)panel.classList.add('active');if(t==='cockpit'){setTimeout(()=>map&&map.invalidateSize(),150);cockpitLoad()}else if(t==='maintenance'){setTimeout(()=>ldMp(),100)}else if(t==='waterlevel'){ldWc()}else if(t==='users'){ldUsers()}}
 function toggleNavDD(){document.getElementById('nav-dd-menu').classList.toggle('show')}
 function switchNavDD(t){document.getElementById('nav-dd-menu').classList.remove('show');switchNav(t)}
 // 运维管理子标签切换
@@ -823,9 +956,11 @@ async function ldSt(){const d=await af('/sites');if(!d)return;const sorted=[...d
 
 async function showSite(id){const d=await af('/sites/'+id);if(!d)return;const devs=d.devices||[];const ov=document.createElement('div');ov.className='modal-overlay';
 const devHtml=devs.map(x=>`<tr><td>${x.device_code}</td><td>${x.device_name}</td><td>${DT[x.device_type]||x.device_type}</td><td><span class="badge ${x.status==='online'?'badge-grn':'badge-org'}">${x.status==='online'?'在线':'离线'}</span></td><td>${x.battery||'-'}%</td><td>${x.last_data_time||'-'}</td>${x.status==='offline'?`<td><button class="btn btn-warning btn-xs" onclick="event.stopPropagation();qckOrder(${id},'${x.device_name}')">异常处理</button></td>`:'<td></td>'}</tr>`).join('');
-ov.innerHTML=`<div class="modal" style="max-width:750px"><h4>&#187;&#187;&#187; ${d.name} (${d.code})</h4><div style="font-size:11px;margin-bottom:8px">类型: ${TM[d.type]||d.type} | 负责人: ${d.manager} | 电话: ${d.phone} | <span style="color:#ff4760">告警: ${d.active_alerts||0}</span> | <span style="color:#ffa040">工单: ${d.open_orders||0}</span></div>
+ov.innerHTML=`<div class="modal" style="max-width:950px"><h4>&#187;&#187;&#187; ${d.name} (${d.code})</h4><div style="font-size:11px;margin-bottom:8px">类型: ${TM[d.type]||d.type} | 负责人: ${d.manager} | 电话: ${d.phone} | <span style="color:#ff4760">告警: ${d.active_alerts||0}</span> | <span style="color:#ffa040">工单: ${d.open_orders||0}</span></div>
 <h5 style="color:#00e0c0;font-size:12px;margin:8px 0 4px">设备清单</h5>
 <table><thead><tr><th>设备编码</th><th>名称</th><th>类型</th><th>状态</th><th>电量</th><th>最后数据</th><th>操作</th></tr></thead><tbody>${devHtml||'<tr><td colspan="7" style="color:#4a8aaa">暂无设备</td></tr>'}</tbody></table>
+<h5 style="color:#00e0c0;font-size:12px;margin:12px 0 4px;display:flex;align-items:center;gap:8px">检查方案 <button class="btn btn-xs" style="color:#00e0c0;border:1px solid rgba(0,200,180,0.2)" onclick="loadSchemesPanel(${id})">加载方案</button></h5>
+<div id="schemes-panel-${id}" style="max-height:300px;overflow-y:auto"><div style="color:#4a8aaa;font-size:11px">点击「加载方案」查看</div></div>
 <button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15);margin-top:10px" onclick="this.closest('.modal-overlay').remove()">关闭</button></div>`;
 document.body.appendChild(ov)}
 // 设备异常快速转工单（防重复点击+按钮禁用）
@@ -841,6 +976,63 @@ async function qckOrder(siteId,devName){
   if(btn){btn.disabled=false;btn.textContent='异常处理'}
   if(r&&r.success){showToast('工单 '+r.order_no+' 创建成功');ldOr()}
 }
+// ===== 检查方案管理 =====
+async function loadSchemesPanel(siteId){
+  var el=document.getElementById('schemes-panel-'+siteId);
+  el.innerHTML='<div style="color:#4a8aaa;font-size:11px">加载中...</div>';
+  var schemes=await af('/sites/'+siteId+'/schemes')||[];
+  if(!schemes.length){el.innerHTML='<div style="color:#4a8aaa;font-size:11px;padding:8px">暂无方案，请先下载模板填写后批量导入</div>';return}
+  var html='<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:rgba(0,200,180,0.05)"><th>方案</th><th>检查项数</th><th>操作</th></tr></thead><tbody>';
+  for(var i=0;i<schemes.length;i++){
+    var scm=schemes[i],label={'daily':'日','weekly':'周','monthly':'月'}[scm.period]||scm.period;
+    html+='<tr><td style="padding:6px 8px;color:#d0e8ff">'+label+'巡检方案 · '+scm.name+'</td><td style="color:#5ea8c8">'+scm.item_count+'项</td><td><button class="btn btn-xs" style="color:#00e0c0;border:1px solid rgba(0,200,180,0.2)" onclick="_editScheme('+scm.id+','+siteId+')">编辑</button></td></tr>';
+  }
+  html+='</tbody></table>';el.innerHTML=html;
+}
+async function _editScheme(schemeId,siteId){
+  var scm=await af('/schemes/'+schemeId);if(!scm||scm.error)return;
+  var label={'daily':'日','weekly':'周','monthly':'月'}[scm.period]||scm.period;
+  var items=scm.items||[],el=document.getElementById('schemes-panel-'+siteId);
+  var html='<div style="margin-bottom:8px;font-weight:500;color:#d0e8ff">编辑: '+label+'巡检方案</div><div style="max-height:350px;overflow-y:auto">';
+  for(var i=0;i<items.length;i++){
+    html+='<div style="display:flex;align-items:center;gap:6px;padding:4px;margin:2px 0;border:1px solid rgba(0,200,180,0.08);border-radius:4px"><span style="font-size:10px;color:#4a8aaa;width:60px">'+(items[i].category||'')+'</span><input type="text" value="'+items[i].check_item+'" style="flex:1;background:rgba(0,0,0,0.15);border:1px solid rgba(0,200,180,0.15);color:#d0e8ff;padding:4px 6px;font-size:11px;border-radius:3px" data-item-id="'+items[i].id+'"> <button class="btn btn-xs" style="color:#ff4760;border:1px solid rgba(255,71,96,0.2)" onclick="_deleteSchemeItem('+items[i].id+','+schemeId+','+siteId+')">×</button></div>';
+  }
+  html+='</div><div style="display:flex;gap:6px;margin-top:8px"><input id="new-item-'+schemeId+'" placeholder="新检查项..." style="flex:1;background:rgba(0,0,0,0.15);border:1px solid rgba(0,200,180,0.15);color:#d0e8ff;padding:4px 6px;font-size:11px;border-radius:3px"><button class="btn btn-xs" style="color:#00e0c0;border:1px solid rgba(0,200,180,0.2)" onclick="_addSchemeItem('+schemeId+','+siteId+')">添加</button></div>';
+  html+='<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="_saveSchemeEdit('+schemeId+','+siteId+')">保存方案</button><button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="loadSchemesPanel('+siteId+')">取消</button></div>';
+  el.innerHTML=html;
+}
+async function _saveSchemeEdit(schemeId,siteId){
+  var inputs=document.querySelectorAll('#schemes-panel-'+siteId+' input[data-item-id]');
+  var items=[];
+  for(var i=0;i<inputs.length;i++){items.push({check_item:inputs[i].value,category:'',sort_order:i})}
+  var r=await afPt('/schemes/'+schemeId,{items:items});
+  if(r&&r.success){showToast('方案已保存');loadSchemesPanel(siteId)}else showToast('保存失败: '+(r?r.error:''));
+}
+async function _addSchemeItem(schemeId,siteId){
+  var inp=document.getElementById('new-item-'+schemeId);var v=inp.value.trim();if(!v)return;
+  var r=await afP('/schemes/'+schemeId+'/items',{check_item:v,category:'自定义'});
+  if(r&&r.success){inp.value='';_editScheme(schemeId,siteId)}else showToast('添加失败');
+}
+async function _deleteSchemeItem(itemId,schemeId,siteId){
+  if(!confirm('确定删除此项？'))return;
+  var r=await afPt('/schemes/items/'+itemId,{});
+  if(r&&r.success){_editScheme(schemeId,siteId)}else showToast('删除失败');
+}
+async function uploadSchemeImport(siteId,input){_globalUploadScheme(input,siteId)}
+
+function _downloadTemplate(){
+  var a=document.createElement('a');a.href='/api/schemes/template';a.download='巡检方案导入模板.xlsx';a.click();
+  // Fallback: open in new tab
+  setTimeout(function(){window.open('/api/schemes/template','_blank')},500);
+}
+
+async function _globalUploadScheme(input,siteId){
+  var file=input.files[0];if(!file)return;
+  var fd=new FormData();fd.append('file',file);
+  try{var resp=await fetch('/api/schemes/import',{method:'POST',body:fd});var r=await resp.json();if(r&&r.success)showToast('导入成功: '+r.schemes_created+'个方案');else showToast('导入失败: '+(r?r.error:''))}catch(e){showToast('导入失败: 网络错误')}
+  input.value='';if(siteId)loadSchemesPanel(siteId);
+}
+
 async function ldAl(){
   const status=document.getElementById('al-flt-status').value;
   const level=document.getElementById('al-flt-level').value;
@@ -1048,7 +1240,7 @@ async function ldOr(){const d=await af('/workorders?limit=100');if(!d)return;con
 
 async function delOrder(no){
   if(!confirm("确认删除工单 "+no+"？"))return;
-  try{const r=await fetch(API+"/workorders/"+no,{method:"DELETE"});const j=await r.json();if(j&&j.success){document.querySelectorAll(".modal-overlay").forEach(function(e){e.remove()});ldOr()}else{alert(j.error||"删除失败")}}catch(e){alert("删除失败: "+e.message)}
+  try{const r=await fetch(API+"/workorders/"+no,{method:"DELETE",headers:_authHdrs()});const j=await r.json();if(j&&j.success){document.querySelectorAll(".modal-overlay").forEach(function(e){e.remove()});ldOr()}else{alert(j.error||"删除失败")}}catch(e){alert("删除失败: "+e.message)}
 }
 async function showOrderDetail(no){
   const d=await af('/workorders?limit=200');if(!d)return;
@@ -1192,7 +1384,7 @@ async function sbmEdtMp(id){
 }
 async function delMp(id){
   if(!confirm('确认要删除此运维计划？'))return
-  const r=await fetch(API+'/maintenance/plans/'+id,{method:'DELETE'});const j=await r.json();
+  const r=await fetch(API+'/maintenance/plans/'+id,{method:'DELETE',headers:_authHdrs()});const j=await r.json();
   if(j&&j.success)ldMp()
 }
 async function revMp(id){
@@ -1382,7 +1574,7 @@ async function lightRefresh(){
     }
   }catch(e){console.warn('[LightRefresh]',e)}
 }
-safeInit();
+(async function(){const authed=await checkAuth();if(authed){safeInit()}})();
 setInterval(lightRefresh,30000);
 </script>
 </body>
