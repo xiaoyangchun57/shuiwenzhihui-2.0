@@ -268,6 +268,7 @@ def init_db():
                 device_type TEXT,
                 status TEXT DEFAULT 'online',
                 battery REAL,
+                voltage REAL DEFAULT 0,
                 last_data_time TEXT,
                 FOREIGN KEY (site_id) REFERENCES sites(id)
             );
@@ -396,6 +397,52 @@ def init_db():
                 is_required INTEGER DEFAULT 1,
                 FOREIGN KEY (scheme_id) REFERENCES inspection_schemes(id) ON DELETE CASCADE
             );
+
+            -- 备件库存表
+            CREATE TABLE IF NOT EXISTS spare_parts_inventory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                part_code TEXT UNIQUE NOT NULL,
+                part_name TEXT NOT NULL,
+                category TEXT DEFAULT '其他',
+                unit TEXT DEFAULT '个',
+                quantity INTEGER DEFAULT 0,
+                min_quantity INTEGER DEFAULT 5,
+                site_id INTEGER,
+                remark TEXT DEFAULT '',
+                updated_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (site_id) REFERENCES sites(id)
+            );
+
+            -- 备件申请表
+            CREATE TABLE IF NOT EXISTS spare_part_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_no TEXT UNIQUE NOT NULL,
+                site_id INTEGER NOT NULL,
+                applicant TEXT NOT NULL,
+                part_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                reason TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending',
+                approver TEXT DEFAULT '',
+                approval_comment TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                updated_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (site_id) REFERENCES sites(id)
+            );
+
+            -- 库存变更流水表
+            CREATE TABLE IF NOT EXISTS inventory_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                part_id INTEGER NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('in','out')),
+                quantity INTEGER NOT NULL,
+                ref_type TEXT DEFAULT '',
+                ref_id INTEGER,
+                operator TEXT DEFAULT '',
+                remark TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (part_id) REFERENCES spare_parts_inventory(id)
+            );
         ''')
         # 兼容已有数据库：尝试添加列，忽略已存在的错误
         for col_sql in [
@@ -414,6 +461,7 @@ def init_db():
             "ALTER TABLE inspection_plans ADD COLUMN period TEXT DEFAULT 'once'",
             "ALTER TABLE inspection_plans ADD COLUMN description TEXT DEFAULT ''",
             "ALTER TABLE inspection_plans ADD COLUMN scheme_id INTEGER",
+            "ALTER TABLE device_shadows ADD COLUMN voltage REAL DEFAULT 0",
         ]:
             try:
                 db.execute(col_sql)
@@ -529,47 +577,70 @@ def _gen_nanchang_sites():
     return sites
 
 def seed_data():
-    """种子数据：300+站点 + 设备 + 工单 + 热线事件（仅首次运行）"""
+    """种子数据：真实站点 + 设备 + 工单 + 热线事件（仅首次运行）"""
     with get_db() as db:
         count = db.execute("SELECT COUNT(*) FROM sites").fetchone()[0]
         if count > 0:
             print("[Seed] 站点数据已存在，跳过站点/设备/工单种子数据")
             return
 
-        # === 300+站点生成 ===
-        all_sites = _gen_nanchang_sites()
+        # === 235个真实站点导入 ===
+        import json as _json
+        json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'site_data.json')
+        if os.path.exists(json_path):
+            with open(json_path, 'r', encoding='utf-8') as f:
+                all_sites = _json.load(f)
+        else:
+            all_sites = _gen_nanchang_sites()
         for s in all_sites:
+            lat = s['lat'] or random.uniform(28.4, 29.2)
+            lng = s['lng'] or random.uniform(115.5, 116.5)
             db.execute(
-                "INSERT INTO sites (code,name,type,lat,lng,district,river,manager,phone) VALUES (?,?,?,?,?,?,?,?,?)",
-                (*s, '管理员', f'1{random.randint(30,99)}0000{random.randint(1000,9999)}')
+                "INSERT INTO sites (code,name,type,lat,lng,district) VALUES (?,?,?,?,?,?)",
+                (s['code'], s['name'], s['type'], lat, lng, s.get('address',''))
             )
         print(f"[Seed] 生成 {len(all_sites)} 个站点")
 
-        # === 设备生成（每站1-4个设备） ===
+        # === 分配负责人（同一行政区划分给同一运维人员，与人员管理一致） ===
+        real_users = db.execute("SELECT username, real_name FROM users WHERE role='operator' ORDER BY id").fetchall()
+        real_names = [u['real_name'] for u in real_users]
+        if not real_names: real_names = ['张建国','黎明','王刚','赵洪']
+        all_rows = db.execute("SELECT id, district FROM sites ORDER BY district, id").fetchall()
+        mgr_map = {}; mgr_idx = 0
+        for row in all_rows:
+            dist = row['district'] or ''
+            if dist not in mgr_map:
+                mgr_map[dist] = real_names[mgr_idx % len(real_names)]
+                mgr_idx += 1
+            db.execute("UPDATE sites SET manager=?, phone=? WHERE id=?",
+                       (mgr_map[dist], f'1{random.randint(30,39)}0000{random.randint(1000,9999)}', row['id']))
+
+        # === 设备生成（每站按类型配设备） ===
         type_devices = {
             'rainfall': [('翻斗式雨量计','rainfall_gauge'),('电子雨量计','electronic_rainfall')],
             'water_level': [('雷达水位计','radar_water_level'),('压力式水位计','pressure_water_level'),('流速计','flow_meter')],
             'hydrology': [('水文综合采集仪','hydro_collector'),('流速仪','current_meter'),('雨量计','rainfall_meter'),('水位计','water_level_meter')],
             'soil_moisture': [('土壤水分传感器','soil_moisture_sensor'),('土壤温度计','soil_temperature')],
             'evaporation': [('蒸发皿','evaporation_pan'),('气象百叶箱','weather_screen'),('风速仪','anemometer')],
+            'groundwater': [('地下水位计','groundwater_level'),('水质在线监测仪','water_quality_monitor')],
+            'station_yard': [('视频监控','video_surveillance'),('安防报警','security_alarm'),('环境传感器','env_sensor')],
         }
-        all_sites_db = db.execute("SELECT id, code, type FROM sites").fetchall()
+        all_sites_db = db.execute("SELECT id, code, type FROM sites ORDER BY id").fetchall()
         for site in all_sites_db:
             devs = type_devices.get(site['type'], [('通用传感器','generic')])
             for i, (dname, dtype) in enumerate(devs):
                 db.execute(
-                    "INSERT INTO device_shadows (site_id,device_code,device_name,device_type,status,battery) VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO device_shadows (site_id,device_code,device_name,device_type,status,battery,voltage) VALUES (?,?,?,?,?,?,?)",
                     (site['id'], f"{site['code']}-{i+1:02d}{dtype[:4].upper()}", dname, dtype,
-                     'online', round(random.uniform(60,100), 0))
+                     'online', round(random.uniform(60,100), 0),
+                     round(random.uniform(11.5, 14.2), 1))
                 )
 
-        # 工单种子数据
+        # 工单种子数据（取前几个站ID）
+        sample_ids = [r['id'] for r in db.execute("SELECT id FROM sites ORDER BY id LIMIT 5").fetchall()]
         orders = [
-            ('WO-20260611-001',1,'auto','设备故障','normal','水位计数据中断','青山水库雷达水位计连续30分钟无数据上报','', '张建国','dispatched','2026-06-11 16:00','2026-06-11 08:30'),
-            ('WO-20260611-002',4,'patrol','渗漏隐患','urgent','堤防B段发现渗漏点','巡查发现滨江堤防B段K3+200处堤脚渗水，面积约0.3m²','', '赵永刚','in_progress','2026-06-11 20:00','2026-06-11 09:15'),
-            ('WO-20260611-003',6,'auto','设备告警','normal','泵站振动异常','新城泵站3号机组振动值达到8.2mm/s，超过警戒线7.0mm/s','', '王志明','accepted','2026-06-12 12:00','2026-06-11 10:00'),
-            ('WO-20260611-004',10,'hotline','水质异常','urgent','供水站出水浊度偏高','市民热线反映自来水发黄，经核实浊度1.8NTU超0.5NTU标准','', '周晓华','in_progress','2026-06-11 22:00','2026-06-10 14:00'),
-            ('WO-20260611-005',1,'superior','安全检查','normal','上级要求汛前全面检查','市水利局下发《关于做好2026年汛前水利工程安全检查的通知》','', '张建国','generated','2026-06-15 18:00','2026-06-10 16:00'),
+            (f'WO-20260618-{i+1:03d}', sample_ids[i] if i < len(sample_ids) else sample_ids[0],
+             'auto','设备故障','normal','水位计数据中断','设备持续30分钟无数据上报','', '张建国','dispatched','2026-06-18 16:00','2026-06-18 08:30') for i in range(5)
         ]
         for o in orders:
             db.execute(
@@ -590,6 +661,56 @@ def seed_data():
                 h
             )
 
+        # 备件库存种子数据
+        inv_cnt = db.execute("SELECT COUNT(*) FROM spare_parts_inventory").fetchone()[0]
+        if inv_cnt == 0:
+            spare_parts = [
+                ('BJ-001', '水位计传感器', '传感器', '个', 30, 5),
+                ('BJ-002', '雨量筒翻斗', '传感器', '个', 15, 5),
+                ('BJ-003', '太阳能板(20W)', '电源', '块', 8, 3),
+                ('BJ-004', '蓄电池(12V)', '电源', '个', 12, 5),
+                ('BJ-005', '数据采集终端RTU', '通信', '台', 5, 2),
+                ('BJ-006', 'GPRS通信模块', '通信', '个', 10, 3),
+                ('BJ-007', '不锈钢水位计支架', '结构', '套', 6, 3),
+                ('BJ-008', '防雷模块', '电源', '个', 20, 5),
+                ('BJ-009', '信号线缆(10m)', '线缆', '根', 25, 10),
+                ('BJ-010', '水位计密封圈', '其他', '个', 50, 10),
+                ('BJ-011', '温湿度传感器', '传感器', '个', 8, 3),
+                ('BJ-012', '风速风向仪', '传感器', '台', 3, 2),
+            ]
+            for pc, pn, cat, unit, qty, minq in spare_parts:
+                db.execute(
+                    "INSERT INTO spare_parts_inventory (part_code,part_name,category,unit,quantity,min_quantity) VALUES (?,?,?,?,?,?)",
+                    (pc, pn, cat, unit, qty, minq)
+                )
+
+        # 备件申请种子数据（演示用）
+        req_cnt = db.execute("SELECT COUNT(*) FROM spare_part_requests").fetchone()[0]
+        if req_cnt == 0:
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            sample_reqs = [
+                (1, '系统管理员', '水位计传感器', 2, '水位计数据异常，需更换', 'approved', '系统管理员', '同意更换', (now - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')),
+                (2, '系统管理员', '太阳能板(20W)', 1, '太阳能板破损', 'approved', '系统管理员', '已核实，批准', (now - timedelta(hours=5)).strftime('%Y-%m-%d %H:%M:%S')),
+                (3, '运维人员', 'GPRS通信模块', 2, '通信模块频繁断连', 'pending', '', '', (now - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')),
+                (4, '运维人员', '防雷模块', 3, '汛期前补充', 'pending', '', '', (now - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')),
+                (5, '系统管理员', '数据采集终端RTU', 1, 'RTU老化需更换', 'rejected', '系统管理员', '库存不足，暂缓采购', (now - timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')),
+            ]
+            for idx, (sid, applicant, pname, qty, reason, status, approver, comment, ctime) in enumerate(sample_reqs):
+                rno = f"BJ-{now.strftime('%Y%m%d')}-{idx+1:03d}"
+                db.execute(
+                    "INSERT INTO spare_part_requests (request_no,site_id,applicant,part_name,quantity,reason,status,approver,approval_comment,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (rno, sid, applicant, pname, qty, reason, status, approver, comment, ctime)
+                )
+                # 已批准的申请记录扣减库存流水
+                if status == 'approved':
+                    inv = db.execute("SELECT id, quantity FROM spare_parts_inventory WHERE part_name LIKE ? LIMIT 1", (f"%{pname}%",)).fetchone()
+                    if inv:
+                        new_qty = max(0, inv['quantity'] - qty)
+                        db.execute("UPDATE spare_parts_inventory SET quantity=? WHERE id=?", (new_qty, inv['id']))
+                        db.execute("INSERT INTO inventory_logs (part_id,type,quantity,ref_type,ref_id,operator,remark) VALUES (?,'out',?,'request',?,?,?)",
+                            (inv['id'], qty, 0, '系统管理员', f"种子数据：{rno}"))
+
         db.commit()
         print("[Seed] Database seeded with initial data.")
 
@@ -598,14 +719,17 @@ def seed_inspections():
     with get_db() as db:
         cnt = db.execute("SELECT COUNT(*) FROM inspection_plans").fetchone()[0]
         if cnt == 0:
+                all_sites = db.execute("SELECT id, name, type FROM sites ORDER BY id").fetchall()
+                if len(all_sites) < 5: return
+                s = all_sites
                 insp_plans = [
-                    ('2026年6月青山水库日常巡检',1,'daily','2026-06-10','2026-06-10','completed'),
-                    ('2026年6月青山水库周巡检',1,'weekly','2026-06-08','2026-06-14','in_progress'),
-                    ('2026年6月梅湖水库日常巡检',2,'daily','2026-06-11','2026-06-11','pending'),
-                    ('2026年6月城北水闸日常巡检',3,'daily','2026-06-10','2026-06-10','completed'),
-                    ('2026年6月滨江堤防A段巡检',4,'weekly','2026-06-09','2026-06-15','in_progress'),
-                    ('2026年6月新城泵站巡检',6,'daily','2026-06-11','2026-06-11','pending'),
-                    ('2026年6月城南供水站巡检',10,'daily','2026-06-10','2026-06-10','completed'),
+                    (f'{s[0]["name"]}日常巡检', s[0]['id'],'daily','2026-06-10','2026-06-10','completed'),
+                    (f'{s[0]["name"]}周巡检', s[0]['id'],'weekly','2026-06-08','2026-06-14','in_progress'),
+                    (f'{s[1]["name"]}日常巡检', s[1]['id'],'daily','2026-06-11','2026-06-11','pending'),
+                    (f'{s[2]["name"]}日常巡检', s[2]['id'],'daily','2026-06-10','2026-06-10','completed'),
+                    (f'{s[3]["name"]}周巡检', s[3]['id'],'weekly','2026-06-09','2026-06-15','in_progress'),
+                    (f'{s[4]["name"]}日常巡检', s[4]['id'],'daily','2026-06-11','2026-06-11','pending'),
+                    (f'{s[5]["name"] if len(s) > 5 else s[0]["name"]}日常巡检', s[5]['id'] if len(s) > 5 else s[0]['id'],'daily','2026-06-10','2026-06-10','completed'),
                 ]
                 insp_items_map = {
                     'reservoir': ['坝体外观检查','溢洪道检查','放水设施检查','监测设备检查','防汛物资检查','管理设施检查'],
@@ -648,17 +772,25 @@ def seed_alerts():
     with get_db() as db:
         acnt = db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
         if acnt == 0:
+            # 从各类型站点取前几个生成告警
+            sid_map = {}
+            for t in ['water_level','rainfall','hydrology']:
+                r = db.execute("SELECT id FROM sites WHERE type=? ORDER BY id LIMIT 5", (t,)).fetchall()
+                if r: sid_map[t] = [row['id'] for row in r]
+            def pick(t, idx=0):
+                lst = sid_map.get(t, [1])
+                return lst[idx % len(lst)]
             alerts_seed = [
-                (1,'water_level',50.8,'yellow','acknowledged','库水位偏高 50.8m > 49.5m','2026-06-11 06:15:00'),
-                (4,'displacement',11.2,'orange','acknowledged','堤防位移超限！11.2mm > 10.0mm','2026-06-11 07:30:00'),
-                (6,'vibration',8.5,'yellow','acknowledged','泵站振动超限！8.5mm/s > 7.0mm/s','2026-06-11 07:45:00'),
-                (10,'turbidity',0.78,'red','acknowledged','供水浊度超标！0.78NTU > 0.5NTU','2026-06-11 08:00:00'),
-                (1,'water_level',51.8,'red','acknowledged','库水位超危急线！51.8m > 51.5m','2026-06-11 09:10:00'),
-                (10,'chlorine',0.55,'orange','pending','供水余氯偏高！0.55mg/L','2026-06-11 09:30:00'),
-                (6,'vibration',9.3,'orange','pending','泵站振动严重！9.3mm/s','2026-06-11 09:45:00'),
-                (1,'seepage',0.85,'yellow','pending','渗流量偏大 0.85L/s','2026-06-11 10:00:00'),
-                (3,'water_level_upstream',14.8,'yellow','pending','上游水位偏高 14.8m','2026-06-11 10:15:00'),
-                (10,'ph',8.4,'yellow','pending','供水pH值异常 8.4','2026-06-11 10:20:00'),
+                (pick('water_level',0),'water_level',50.8,'yellow','acknowledged','库水位偏高 50.8m > 49.5m','2026-06-11 06:15:00'),
+                (pick('hydrology',0),'displacement',11.2,'orange','acknowledged','位移超限！11.2mm > 10.0mm','2026-06-11 07:30:00'),
+                (pick('water_level',1),'vibration',8.5,'yellow','acknowledged','振动超限！8.5mm/s > 7.0mm/s','2026-06-11 07:45:00'),
+                (pick('rainfall',0),'turbidity',0.78,'red','acknowledged','浊度超标！0.78NTU > 0.5NTU','2026-06-11 08:00:00'),
+                (pick('water_level',0),'water_level',51.8,'red','acknowledged','水位超危急线！51.8m > 51.5m','2026-06-11 09:10:00'),
+                (pick('rainfall',0),'chlorine',0.55,'orange','pending','余氯偏高！0.55mg/L','2026-06-11 09:30:00'),
+                (pick('water_level',1),'vibration',9.3,'orange','pending','振动严重！9.3mm/s','2026-06-11 09:45:00'),
+                (pick('water_level',2),'seepage',0.85,'yellow','pending','渗流量偏大 0.85L/s','2026-06-11 10:00:00'),
+                (pick('water_level',3),'water_level_upstream',14.8,'yellow','pending','上游水位偏高 14.8m','2026-06-11 10:15:00'),
+                (pick('rainfall',1),'ph',8.4,'yellow','pending','pH值异常 8.4','2026-06-11 10:20:00'),
             ]
             for a in alerts_seed:
                 sid = a[0]; metric = a[1]; val = a[2]; lv = a[3]; st = a[4]; msg = a[5]; ct = a[6]
@@ -901,6 +1033,26 @@ def _generate_site_data(site, db, now):
         elif temp > 35:
             create_alert_internal(db,sid,'temperature',temp,'yellow',f'高温预警 {temp}°C')
 
+    elif stype == 'groundwater':
+        gwl = get_site_trend(sid,'gwl',25,0.5,5,50)
+        wq = get_site_trend(sid,'wq',7.0,0.15,5.5,9.0)
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'groundwater_level',gwl,'m',now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,recorded_at) VALUES (?,?,?,?,?,?)",
+            (sid,'water_quality',wq,'pH',8.5,now))
+        if wq > 8.5:
+            create_alert_internal(db,sid,'water_quality',wq,'yellow',f'地下水水质异常 pH{wq}')
+
+    elif stype == 'station_yard':
+        temp_s = get_site_trend(sid,'temp_s',26,1.0,10,45)
+        noise = get_site_trend(sid,'noise',55,2,30,90)
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'temperature',temp_s,'°C',now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'noise',noise,'dB',now))
+        if noise > 80:
+            create_alert_internal(db,sid,'noise',noise,'yellow',f'站院噪音超标 {noise}dB')
+
 def _scheduler_db():
     """专用调度器数据库连接（超时5秒，异步写入，避免阻塞API）"""
     db = sqlite3.connect(DB_PATH, timeout=5, check_same_thread=False)
@@ -958,7 +1110,9 @@ def generate_sensor_data():
                 'water_level': 'water_level',
                 'hydrology': 'water_level',
                 'soil_moisture': 'soil_moisture',
-                'evaporation': 'evaporation'
+                'evaporation': 'evaporation',
+                'groundwater': 'water_level',
+                'station_yard': 'environment',
             }
             m = metrics_map.get(site['type'])
             if not m: continue
@@ -2869,6 +3023,274 @@ def api_user_status(uid):
         db.execute("UPDATE users SET status=? WHERE id=?", (new_status, uid))
         db.commit()
     return jsonify({'success': True})
+
+
+# ===================== 设备管理 API =====================
+
+@app.route('/api/devices')
+@login_required
+def api_devices_list():
+    """设备台账列表，支持按站点/类型/状态筛选"""
+    site_id = request.args.get('site_id', '').strip()
+    device_type = request.args.get('type', '').strip()
+    status = request.args.get('status', '').strip()
+    search = request.args.get('search', '').strip()
+    with get_db() as db:
+        sql = """SELECT d.id, d.device_code, d.device_name, d.device_type, d.status,
+                        d.battery, d.voltage, d.last_data_time,
+                        s.name as site_name, s.code as site_code, s.id as site_id
+                 FROM device_shadows d LEFT JOIN sites s ON d.site_id=s.id WHERE 1=1"""
+        params = []
+        if site_id:
+            sql += " AND d.site_id=?"
+            params.append(site_id)
+        if device_type:
+            sql += " AND d.device_type=?"
+            params.append(device_type)
+        if status:
+            sql += " AND d.status=?"
+            params.append(status)
+        if search:
+            sql += " AND (d.device_name LIKE ? OR d.device_code LIKE ? OR s.name LIKE ?)"
+            like = f"%{search}%"
+            params.extend([like, like, like])
+        sql += " ORDER BY d.status DESC, d.site_id"
+        rows = db.execute(sql, params).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/devices/<int:device_id>')
+@login_required
+def api_device_detail(device_id):
+    """设备详情 + 维护记录"""
+    with get_db() as db:
+        dev = db.execute("""SELECT d.*, s.name as site_name, s.code as site_code,
+                                   s.district, s.manager
+                            FROM device_shadows d LEFT JOIN sites s ON d.site_id=s.id
+                            WHERE d.id=?""", (device_id,)).fetchone()
+        if not dev:
+            return jsonify({'error': '设备不存在'}), 404
+        logs = db.execute("""SELECT * FROM inventory_logs
+                             WHERE ref_type='maintenance' AND ref_id=?
+                             ORDER BY created_at DESC LIMIT 20""", (device_id,)).fetchall()
+    return jsonify({'device': dict(dev), 'logs': [dict(l) for l in logs]})
+
+
+# --- 备件库存 ---
+
+@app.route('/api/parts/inventory')
+@login_required
+def api_parts_inventory():
+    """备件库存列表"""
+    category = request.args.get('category', '').strip()
+    low = request.args.get('low', '').strip()
+    search = request.args.get('search', '').strip()
+    with get_db() as db:
+        sql = """SELECT p.*, s.name as site_name
+                 FROM spare_parts_inventory p LEFT JOIN sites s ON p.site_id=s.id WHERE 1=1"""
+        params = []
+        if category:
+            sql += " AND p.category=?"
+            params.append(category)
+        if low == '1':
+            sql += " AND p.quantity <= p.min_quantity"
+        if search:
+            sql += " AND (p.part_name LIKE ? OR p.part_code LIKE ?)"
+            like = f"%{search}%"
+            params.extend([like, like])
+        sql += " ORDER BY p.quantity ASC"
+        rows = db.execute(sql, params).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/parts/inventory', methods=['POST'])
+@login_required
+def api_parts_inventory_add():
+    """新增备件或入库"""
+    data = request.get_json() or {}
+    part_code = data.get('part_code', '').strip()
+    part_name = data.get('part_name', '').strip()
+    category = data.get('category', '其他').strip()
+    unit = data.get('unit', '个').strip()
+    quantity = int(data.get('quantity', 1))
+    min_quantity = int(data.get('min_quantity', 5))
+    site_id = data.get('site_id')
+    remark = data.get('remark', '').strip()
+    if not part_name:
+        return jsonify({'error': '备件名称不能为空'}), 400
+    if not part_code:
+        import uuid
+        part_code = f"BJ-{uuid.uuid4().hex[:6].upper()}"
+    with get_db() as db:
+        cur = db.execute("""INSERT INTO spare_parts_inventory
+            (part_code,part_name,category,unit,quantity,min_quantity,site_id,remark)
+            VALUES (?,?,?,?,?,?,?,?)""",
+            (part_code, part_name, category, unit, quantity, min_quantity, site_id, remark))
+        pid = cur.lastrowid
+        db.execute("""INSERT INTO inventory_logs (part_id,type,quantity,ref_type,operator,remark)
+            VALUES (?,'in',?,'purchase',?,?)""",
+            (pid, quantity, g.current_user['username'] or 'admin', f'入库: {part_name}'))
+        db.commit()
+    return jsonify({'success': True, 'id': pid, 'part_code': part_code})
+
+
+@app.route('/api/parts/inventory/<int:pid>', methods=['PUT'])
+@login_required
+def api_parts_inventory_update(pid):
+    """更新备件信息或手动出库"""
+    data = request.get_json() or {}
+    with get_db() as db:
+        part = db.execute("SELECT * FROM spare_parts_inventory WHERE id=?", (pid,)).fetchone()
+        if not part:
+            return jsonify({'error': '备件不存在'}), 404
+        # 出库操作
+        if 'out_qty' in data:
+            qty = int(data['out_qty'])
+            if qty <= 0:
+                return jsonify({'error': '出库数量需大于0'}), 400
+            if part['quantity'] - qty < 0:
+                return jsonify({'error': '库存不足'}), 400
+            db.execute("UPDATE spare_parts_inventory SET quantity=quantity-?, updated_at=datetime('now','localtime') WHERE id=?", (qty, pid))
+            db.execute("""INSERT INTO inventory_logs (part_id,type,quantity,ref_type,operator,remark)
+                VALUES (?,'out',?,'adjust',?,?)""",
+                (pid, qty, g.current_user['username'] or 'admin', '手动出库'))
+        # 入库操作
+        if 'in_qty' in data:
+            qty = int(data['in_qty'])
+            if qty <= 0:
+                return jsonify({'error': '入库数量需大于0'}), 400
+            db.execute("UPDATE spare_parts_inventory SET quantity=quantity+?, updated_at=datetime('now','localtime') WHERE id=?", (qty, pid))
+            db.execute("""INSERT INTO inventory_logs (part_id,type,quantity,ref_type,operator,remark)
+                VALUES (?,'in',?,'purchase',?,?)""",
+                (pid, qty, g.current_user['username'] or 'admin', '手动入库'))
+        # 更新基本信息
+        for field in ['part_name', 'category', 'unit', 'min_quantity', 'remark']:
+            if field in data:
+                db.execute(f"UPDATE spare_parts_inventory SET {field}=? WHERE id=?", (data[field], pid))
+        db.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/parts/inventory/<int:pid>/logs')
+@login_required
+def api_parts_inventory_logs(pid):
+    """备件库存变更流水"""
+    with get_db() as db:
+        rows = db.execute("""SELECT * FROM inventory_logs WHERE part_id=? ORDER BY created_at DESC LIMIT 50""", (pid,)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# --- 备件申请 ---
+
+@app.route('/api/parts/requests', methods=['GET'])
+@login_required
+def api_parts_requests_list():
+    """备件申请列表（Web端：全部；移动端按申请人过滤）"""
+    status_f = request.args.get('status', '').strip()
+    applicant = request.args.get('applicant', '').strip()
+    with get_db() as db:
+        sql = """SELECT r.*, s.name as site_name
+                 FROM spare_part_requests r LEFT JOIN sites s ON r.site_id=s.id WHERE 1=1"""
+        params = []
+        if status_f:
+            sql += " AND r.status=?"
+            params.append(status_f)
+        if applicant:
+            sql += " AND r.applicant=?"
+            params.append(applicant)
+        sql += " ORDER BY r.created_at DESC"
+        rows = db.execute(sql, params).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/parts/requests', methods=['POST'])
+@login_required
+def api_parts_requests_create():
+    """创建备件申请（移动端调用）"""
+    data = request.get_json() or {}
+    site_id = data.get('site_id')
+    part_name = data.get('part_name', '').strip()
+    quantity = int(data.get('quantity', 1))
+    reason = data.get('reason', '').strip()
+    if not site_id or not part_name:
+        return jsonify({'error': '站点和备件名称不能为空'}), 400
+    applicant = g.current_user['username'] or 'unknown'
+    # 生成申请编号：BJ+年月日+序号
+    from datetime import datetime
+    today = datetime.now().strftime('%Y%m%d')
+    with get_db() as db:
+        count = db.execute("SELECT COUNT(*) as c FROM spare_part_requests WHERE request_no LIKE ?", (f"BJ-{today}%",)).fetchone()['c']
+        request_no = f"BJ-{today}-{count+1:03d}"
+        db.execute("""INSERT INTO spare_part_requests
+            (request_no,site_id,applicant,part_name,quantity,reason)
+            VALUES (?,?,?,?,?,?)""",
+            (request_no, site_id, applicant, part_name, quantity, reason))
+        db.commit()
+    return jsonify({'success': True, 'request_no': request_no})
+
+
+@app.route('/api/parts/requests/mine')
+@login_required
+def api_parts_requests_mine():
+    """我的备件申请记录（移动端）"""
+    applicant = g.current_user['username'] or 'unknown'
+    with get_db() as db:
+        rows = db.execute("""SELECT r.*, s.name as site_name
+            FROM spare_part_requests r LEFT JOIN sites s ON r.site_id=s.id
+            WHERE r.applicant=? ORDER BY r.created_at DESC""", (applicant,)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/parts/requests/<int:rid>/approve', methods=['PUT'])
+@login_required
+def api_parts_request_approve(rid):
+    """审批通过：更新状态 + 扣减库存"""
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '仅管理员可审批'}), 403
+    comment = (request.get_json() or {}).get('comment', '审批通过')
+    with get_db() as db:
+        req = db.execute("SELECT * FROM spare_part_requests WHERE id=?", (rid,)).fetchone()
+        if not req:
+            return jsonify({'error': '申请不存在'}), 404
+        if req['status'] != 'pending':
+            return jsonify({'error': '该申请已处理'}), 400
+        # 更新申请状态
+        db.execute("""UPDATE spare_part_requests SET status='approved', approver=?,
+            approval_comment=?, updated_at=datetime('now','localtime') WHERE id=?""",
+            (g.current_user['username'] or 'admin', comment, rid))
+        # 尝试扣减库存：查找匹配的备件（按名称模糊匹配）
+        inv = db.execute("""SELECT * FROM spare_parts_inventory
+            WHERE part_name LIKE ? ORDER BY quantity DESC LIMIT 1""",
+            (f"%{req['part_name']}%",)).fetchone()
+        if inv:
+            new_qty = max(0, inv['quantity'] - req['quantity'])
+            db.execute("UPDATE spare_parts_inventory SET quantity=?, updated_at=datetime('now','localtime') WHERE id=?", (new_qty, inv['id']))
+            db.execute("""INSERT INTO inventory_logs (part_id,type,quantity,ref_type,ref_id,operator,remark)
+                VALUES (?,'out',?,'request',?,?,?)""",
+                (inv['id'], req['quantity'], rid, g.current_user['username'] or 'admin',
+                 f"备件申请 #{req['request_no']}"))
+        db.commit()
+    return jsonify({'success': True, 'message': '已批准，库存已扣减'})
+
+
+@app.route('/api/parts/requests/<int:rid>/reject', methods=['PUT'])
+@login_required
+def api_parts_request_reject(rid):
+    """驳回申请"""
+    if g.current_user['role'] != 'admin':
+        return jsonify({'error': '仅管理员可审批'}), 403
+    comment = (request.get_json() or {}).get('comment', '驳回')
+    with get_db() as db:
+        req = db.execute("SELECT * FROM spare_part_requests WHERE id=?", (rid,)).fetchone()
+        if not req:
+            return jsonify({'error': '申请不存在'}), 404
+        if req['status'] != 'pending':
+            return jsonify({'error': '该申请已处理'}), 400
+        db.execute("""UPDATE spare_part_requests SET status='rejected', approver=?,
+            approval_comment=?, updated_at=datetime('now','localtime') WHERE id=?""",
+            (g.current_user['username'] or 'admin', comment, rid))
+        db.commit()
+    return jsonify({'success': True, 'message': '已驳回'})
 
 
 # ===================== 站点过滤辅助函数 =====================

@@ -198,7 +198,32 @@ body{
 .iv-header{display:flex;align-items:center;gap:var(--space-md);padding:0 var(--space-lg);height:var(--nav-bar-h);background:var(--bg-card);position:sticky;top:0;z-index:10;border-bottom:.5px solid var(--divider)}
 .iv-header .back{font-size:20px;cursor:pointer;padding:4px;user-select:none;color:var(--text-secondary)}
 .iv-header .iv-title{font-size:17px;font-weight:600;color:var(--text-primary);flex:1}
+.iv-header .iv-right{font-size:12px;color:var(--accent-color);cursor:pointer;padding:4px 0;white-space:nowrap;flex-shrink:0}
 .iv-header-extra{padding:4px 12px;background:var(--brand-light);color:var(--brand);border-radius:14px;font-size:12px;cursor:pointer;font-weight:500}
+/* 站点建议下拉 */
+#parts-site-suggest{position:relative;background:var(--bg-card);border:0.5px solid var(--divider);border-radius:6px;margin-top:2px;z-index:5}
+#parts-site-suggest div:hover{background:var(--brand-light)}
+/* 运维规范 - 手风琴样式 */
+.m-filterbar{display:flex;flex-wrap:wrap;gap:6px;padding:0 0 10px 0;border-bottom:.5px solid var(--divider);margin-bottom:8px}
+.m-filter{padding:5px 12px;border-radius:14px;font-size:11px;cursor:pointer;background:transparent;color:var(--text-tertiary);border:.5px solid rgba(0,200,180,0.2);transition:all .2s;user-select:none}
+.m-filter.active{background:rgba(0,200,180,0.15);color:var(--accent-color);border-color:var(--accent-color)}
+.m-accordion{display:flex;flex-direction:column;gap:6px}
+.m-acc-item{background:var(--bg-card);border-radius:8px;overflow:hidden;border:.5px solid var(--divider)}
+.m-acc-header{display:flex;flex-direction:column;padding:12px 14px;cursor:pointer;position:relative;gap:3px}
+.m-acc-title{font-size:14px;font-weight:600;color:var(--text-primary);padding-right:24px}
+.m-acc-meta{font-size:10px;color:var(--text-tertiary);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.m-tag{display:inline-block;padding:1px 6px;border-radius:6px;background:rgba(0,200,180,0.08);color:var(--accent-color);font-size:10px}
+.m-acc-arrow{position:absolute;right:14px;top:16px;font-size:10px;color:var(--text-tertiary);transition:transform .2s}
+.m-acc-body{padding:0 14px 12px;font-size:12.5px;color:var(--text-primary);line-height:1.7;border-top:.5px solid var(--divider)}
+.m-acc-body h4{font-size:13px;font-weight:600;color:var(--text-primary);margin:8px 0 4px}
+.m-acc-body ul,.m-acc-body ol{margin:4px 0;padding-left:16px}
+.m-acc-body li{margin-bottom:4px}
+.m-acc-body p{margin:4px 0}
+.m-section{margin-bottom:6px;padding:6px 0;border-bottom:.5px solid rgba(0,200,180,0.04)}
+.m-tip{padding:6px 10px;background:rgba(0,200,180,0.05);border-radius:6px;font-size:11px;color:var(--accent-color);margin-top:6px}
+.m-checklist{display:flex;flex-direction:column;gap:4px;padding:4px 0}
+.m-check{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 0;cursor:pointer}
+.m-check input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent-color);flex-shrink:0}
 .iv-body{padding:var(--space-lg)}
 .iv-card{background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-sm);box-shadow:var(--shadow-sm);overflow-wrap:break-word}
 .iv-card:last-child{margin-bottom:0}
@@ -328,7 +353,7 @@ body{
             <div class="header-avatar" id="m-avatar" onclick="showUserMenu()">R</div>
             <div class="header-search" style="flex:1"><span class="i i-sm" style="color:var(--text-tertiary);margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input id="m-search-inp" placeholder="搜索站点/工单/预警/巡检..." oninput="globalSearch()" style="border:none;background:transparent;outline:none;font-size:13px;color:var(--text-primary);flex:1;width:0"></div>
           </div>
-        <div class="header-date"><span id="m-date">-</span> · <span id="m-weekday">-</span></div>
+        <div class="header-date"><span id="m-date">-</span> · <span id="m-weekday">-</span> · <span id="m-district">-</span></div>
         <div class="header-weather"><span id="m-w-text">--</span></div>
         <div style="display:flex;gap:8px;align-items:stretch;margin-top:4px">
           <div style="display:flex;flex-direction:column;justify-content:flex-end;flex-shrink:0">
@@ -387,6 +412,8 @@ body{
         <div class="site-tab" onclick="filterSiteType('hydrology')">水文站</div>
         <div class="site-tab" onclick="filterSiteType('soil_moisture')">墒情站</div>
         <div class="site-tab" onclick="filterSiteType('evaporation')">蒸发站</div>
+        <div class="site-tab" onclick="filterSiteType('groundwater')">地下水站</div>
+        <div class="site-tab" onclick="filterSiteType('station_yard')">站院</div>
       </div>
       <div class="si-filter"><input id="si-filter-inp" placeholder="搜索站点名称/编码..." oninput="filterSites()"></div>
       <div id="site-list"><div class="loading">加载中...</div></div>
@@ -535,16 +562,34 @@ body{
 
   <!-- Parts Apply -->
   <div class="inline-view" id="parts-apply">
-    <div class="iv-header"><span class="back" onclick="closeView('parts-apply')">←</span><span class="iv-title">备件申请</span></div>
+    <div class="iv-header">
+      <span class="back" onclick="closeView('parts-apply')">←</span>
+      <span class="iv-title">备件申请</span>
+      <span class="iv-right" onclick="openMyParts()" style="font-size:12px;color:var(--accent-color);cursor:pointer">申请记录</span>
+    </div>
     <div class="iv-body">
       <div class="iv-card">
-        <div class="form-group"><label>站点</label><select id="parts-site"><option>选择站点</option></select></div>
-        <div class="form-group"><label>名称</label><input id="parts-name" placeholder="备件名称"></div>
-        <div class="form-group"><label>数量</label><input id="parts-qty" type="number" value="1"></div>
+        <div class="form-group"><label>站点</label>
+          <input id="parts-site-input" placeholder="输入站点名称搜索..." oninput="filterPartsSites(this.value)" onblur="setTimeout(function(){var s=document.getElementById('parts-site-suggest');if(s)s.style.display='none'},200)" autocomplete="off">
+          <input id="parts-site" type="hidden">
+          <div id="parts-site-suggest" style="max-height:150px;overflow-y:auto;display:none"></div>
+        </div>
+        <div class="form-group"><label>申请部件</label>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px" id="parts-cat-bar"></div>
+          <div id="parts-list" style="max-height:160px;overflow-y:auto"></div>
+          <input id="parts-name" style="display:none">
+        </div>
+        <div class="form-group"><label>数量</label><input id="parts-qty" type="text" inputmode="numeric" value="1"></div>
         <div class="form-group"><label>原因</label><textarea id="parts-reason" placeholder="简述原因..."></textarea></div>
         <button class="btn-primary" onclick="submitParts()">提交</button>
       </div>
     </div>
+  </div>
+
+  <!-- My Parts Requests -->
+  <div class="inline-view" id="my-parts">
+    <div class="iv-header"><span class="back" onclick="closeView('my-parts')">←</span><span class="iv-title">我的申请</span></div>
+    <div class="iv-body" id="my-parts-body"><div class="loading">加载中...</div></div>
   </div>
 
   <!-- Manuals -->
@@ -570,10 +615,10 @@ window.onerror=function(msg,src,line,col,err){
 };
 
 var API='/api';
-var TM={rainfall:'雨量站',water_level:'水位站',hydrology:'水文站',soil_moisture:'墒情站',evaporation:'蒸发站'};
+var TM={rainfall:'雨量站',water_level:'水位站',hydrology:'水文站',soil_moisture:'墒情站',evaporation:'蒸发站',groundwater:'地下水站',station_yard:'站院'};
 var MCN={precipitation:'降雨量(mm/h)',cumulative_rainfall:'累计降雨量(mm)',water_level:'水位(m)',flow_rate:'流量(m³/s)',temperature:'温度(°C)',humidity:'湿度(%)',soil_moisture:'土壤含水量(%)',evaporation:'蒸发量(mm)',pressure:'压力(MPa)',vibration:'振动(mm/s)',battery:'电池电量(V)',signal_strength:'信号强度(dBm)'};
 function _mcn(key){return MCN[key]||key}
-var SM={pending:'待受理',accepted:'已受理',generated:'',dispatched:'',in_progress:'处置中',reviewing:'待验收',acceptance:'已验收',closed:'已办结'};
+var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
 var WO_PCT={pending:0,accepted:15,generated:0,dispatched:0,in_progress:40,reviewing:70,acceptance:90,closed:100};
 var OB={pending:'#999',accepted:'#07C160',generated:'#999',dispatched:'#999',in_progress:'#ffa040',reviewing:'#2196F3',acceptance:'#07C160',closed:'#999'};
 var SB_CLASS={pending:'sb-pending',accepted:'sb-process',generated:'sb-pending',dispatched:'sb-pending',in_progress:'sb-warning',reviewing:'sb-info',acceptance:'sb-process',closed:'sb-done'};
@@ -650,7 +695,7 @@ async function init(){
   allWO=await af('/workorders?limit=50')||[];
   allAlerts=await af('/alerts?limit=200')||[];
   allInsp=await af('/inspections')||[];
-  updateTaskCounter();renderHome();initSwipe();alignHomeHeader();
+  updateTaskCounter();renderHome();initSwipe();alignHomeHeader();updateDateTime(); // 再次刷新区域
   setInterval(function(){updateDateTime();refreshData()},30000);
 }
 async function refreshData(){
@@ -658,12 +703,16 @@ async function refreshData(){
   allWO=await af('/workorders?limit=50')||[];
   allAlerts=await af('/alerts?limit=200')||[];
   allInsp=await af('/inspections')||[];
-  updateTaskCounter();renderHome();alignHomeHeader();
+  updateTaskCounter();renderHome();alignHomeHeader();updateDateTime();
 }
+var _currentDistrict=''; // 缓存区域
 function updateDateTime(){
   var d=new Date(),days=['日','一','二','三','四','五','六'];
   var dateEl=document.getElementById('m-date');if(dateEl)dateEl.textContent=d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0');
   var wkEl=document.getElementById('m-weekday');if(wkEl)wkEl.textContent='周'+days[d.getDay()];
+  // 设置区域
+  if(!_currentDistrict&&allSites&&allSites.length){for(var i=0;i<allSites.length;i++){if(allSites[i].district){_currentDistrict=allSites[i].district;break}}}
+  var distEl=document.getElementById('m-district');if(distEl)distEl.textContent=_currentDistrict||'南昌市';
 }
 async function updateWeather(){
   var iconEl=document.getElementById('m-w-icon'),txtEl=document.getElementById('m-w-text');
@@ -774,7 +823,7 @@ function initSwipe(){
   siteTabsEl.addEventListener('touchstart',_onTouchStart,{passive:true});
   siteTabsEl.addEventListener('touchend',function(e){
     _onTouchEnd(e,function(dir){
-      var types=['','rainfall','water_level','hydrology','soil_moisture','evaporation'];
+      var types=['','rainfall','water_level','hydrology','soil_moisture','evaporation','groundwater','station_yard'];
       var curIdx=types.indexOf(_siteFilterType);
       var next=curIdx+dir;
       if(next>=0&&next<types.length)filterSiteType(types[next]);
@@ -1661,14 +1710,192 @@ async function submitNewInspection(){
 }
 
 // ===== Parts & Manuals =====
-function openPartsApply(){document.getElementById('parts-apply').classList.add('open')}
-async function loadPartsSites(){var s=await af('/sites');var sel=document.getElementById('parts-site');if(s)for(var i=0;i<s.length;i++){sel.innerHTML+='<option>'+s[i].name+'</option>'}}
-function submitParts(){showToast('申请已提交（演示）');setTimeout(function(){closeView('parts-apply')},1000)}
+var _partsData=[],_partsAllSites=[];
+function openPartsApply(){
+  document.getElementById('parts-apply').classList.add('open');
+  loadPartsCategories();
+  // 加载站点数据用于搜索
+  af('/sites').then(function(s){_partsAllSites=s||[]});
+}
+// 站点搜索
+function filterPartsSites(q){
+  var suggest=document.getElementById('parts-site-suggest');
+  if(!q){suggest.style.display='none';return}
+  var matches=_partsAllSites.filter(function(s){return s.name.indexOf(q)!==-1||s.code.indexOf(q)!==-1});
+  if(!matches.length){suggest.style.display='none';return}
+  var h='';
+  for(var i=0;i<Math.min(matches.length,15);i++){
+    (function(site){
+      h+='<div style="padding:8px 10px;border-bottom:1px solid var(--border-color);cursor:pointer;font-size:13px;color:var(--text-primary)" onclick="selectPartsSite('+site.id+',\''+site.name+'\')">'
+        +site.name+' <span style="font-size:11px;color:var(--text-tertiary)">'+site.code+'</span></div>';
+    })(matches[i]);
+  }
+  suggest.innerHTML=h;
+  suggest.style.display='block';
+}
+function selectPartsSite(id,name){
+  document.getElementById('parts-site').value=id;
+  document.getElementById('parts-site-input').value=name;
+  document.getElementById('parts-site-suggest').style.display='none';
+}
+// 分类部件选择
+async function loadPartsCategories(){
+  var rows=await af('/parts/inventory');
+  if(!rows||!rows.length)return;
+  _partsData=rows;
+  var cats={};
+  for(var i=0;i<rows.length;i++){cats[rows[i].category]=true}
+  var catKeys=Object.keys(cats);
+  var bar=document.getElementById('parts-cat-bar');
+  bar.innerHTML='';
+  for(var j=0;j<catKeys.length;j++){
+    (function(cat){
+      var btn=document.createElement('span');
+      btn.textContent=cat;
+      btn.style.cssText='padding:4px 10px;border-radius:12px;font-size:12px;background:transparent;color:var(--text-tertiary);border:1px solid rgba(0,200,180,0.2);cursor:pointer;transition:all .2s';
+      btn.onclick=function(){
+        bar.querySelectorAll('span').forEach(function(b){b.style.background='transparent';b.style.color='var(--text-tertiary)';b.style.borderColor='rgba(0,200,180,0.2)'});
+        btn.style.background='rgba(0,200,180,0.15)';btn.style.color='var(--accent-color)';btn.style.borderColor='var(--accent-color)';
+        showPartsList(cat);
+      };
+      bar.appendChild(btn);
+    })(catKeys[j]);
+  }
+  if(catKeys.length){bar.firstChild.click()}
+}
+function showPartsList(cat){
+  var list=document.getElementById('parts-list');
+  var filtered=_partsData.filter(function(p){return p.category===cat});
+  if(!filtered.length){list.innerHTML='<div style="font-size:12px;color:var(--text-tertiary);padding:8px">该分类暂无备件</div>';return}
+  var h='';
+  for(var i=0;i<filtered.length;i++){
+    (function(p){
+      var low=p.quantity<=p.min_quantity?' ⚠':'';
+      h+='<div class="parts-opt" style="padding:8px 10px;border-bottom:1px solid var(--border-color);cursor:pointer;font-size:13px;color:var(--text-primary);display:flex;justify-content:space-between" onclick="selectPart(this,\''+p.part_name.replace(/'/g,"\\'")+'\')">'
+        +'<span>'+p.part_name+low+'</span><span style="font-size:11px;color:var(--text-tertiary)">库存:'+p.quantity+'</span></div>';
+    })(filtered[i]);
+  }
+  list.innerHTML=h;
+}
+function selectPart(el,name){
+  document.querySelectorAll('.parts-opt').forEach(function(e){e.style.background='transparent'});
+  el.style.background='rgba(0,200,180,0.1)';
+  document.getElementById('parts-name').value=name;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+// 提交申请
+function submitParts(){
+  var siteId=document.getElementById('parts-site').value;
+  var name=document.getElementById('parts-name').value.trim();
+  var qty=document.getElementById('parts-qty').value;
+  var reason=document.getElementById('parts-reason').value.trim();
+  if(!siteId){showToast('请选择站点');return}
+  if(!name){showToast('请选择申请部件');return}
+  showToast('提交中...');
+  afP('/parts/requests',{site_id:parseInt(siteId),part_name:name,quantity:parseInt(qty)||1,reason:reason}).then(function(r){
+    if(r&&r.success){showToast('申请已提交，等待审批');document.getElementById('parts-site').value='';document.getElementById('parts-site-input').value='';document.getElementById('parts-name').value='';document.getElementById('parts-qty').value='1';document.getElementById('parts-reason').value=''}
+    else{showToast(r&&r.error||'提交失败')}
+  })
+}
+// 我的申请（完整页）
+function openMyParts(){
+  document.getElementById('my-parts').classList.add('open');
+  loadMyParts();
+}
+async function loadMyParts(){
+  var rows=await af('/parts/requests/mine');
+  var body=document.getElementById('my-parts-body');
+  if(!rows||!rows.length){body.innerHTML='<div class="iv-card" style="text-align:center;color:var(--text-tertiary)">暂无申请记录</div>';return}
+  var h='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    var sc=r.status==='pending'?'#ffa040':r.status==='approved'?'#2ea080':'#ff4760';
+    var stxt=r.status==='pending'?'⏳待审批':r.status==='approved'?'✅已通过('+(r.approver||'')+')':'❌已驳回('+(r.approver||'')+')';
+    h+='<div class="iv-card" style="border-left:3px solid '+sc+';margin-bottom:6px">'
+      +'<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-primary)"><b>'+(r.part_name||'')+' ×'+r.quantity+'</b><span style="color:'+sc+';font-size:11px">'+stxt+'</span></div>'
+      +'<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">'+(r.request_no||'')+' | '+(r.site_name||'')+' | '+(r.created_at||'').substring(5,16)+'</div>'
+      +(r.approval_comment?'<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">意见：'+(r.approval_comment||'')+'</div>':'')
+      +'</div>';
+  }
+  body.innerHTML=h;
+}
 function openManuals(){
   document.getElementById('manuals').classList.add('open');
-  var m=[{title:'水文监测设备运维手册',cat:'设备操作'},{title:'故障排查指南',cat:'故障处理'},{title:'雨量站巡检规程',cat:'巡检规范'},{title:'水位计校准流程',cat:'校准规范'},{title:'数据传输异常处理',cat:'故障处理'},{title:'汛期值班制度',cat:'制度规范'},{title:'安全生产流程',cat:'安全规范'},{title:'备品备件管理',cat:'仓库管理'}];
-  var h='';for(var i=0;i<m.length;i++){h+='<div class="iv-card"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+m[i].title+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+m[i].cat+'</div></div>'}
-  document.getElementById('manuals-body').innerHTML=h;
+  if(!window._manualsInited)renderManuals();
+}
+var _manualsData=[
+  {title:'翻斗式雨量计维护要点',cat:'设备操作',tags:['雨量计','维护'],content:'<div class="m-section"><h4>月度维护</h4><ul><li>清洗漏斗和翻斗，清除杂物、鸟粪、蜘蛛网</li><li>检查水平气泡，确保仪器水平（误差≤0.5°）</li><li>测试翻斗翻转灵敏度，0.5mm翻斗应正常翻转</li><li>检查加热装置（冬季），确保融雪功能正常</li></ul></div><div class="m-section"><h4>季度校准</h4><ul><li>用10mm标准量筒注水，记录实测值</li><li>误差应≤4%，超差需调整或更换</li><li>校准记录表应包含：日期、操作人、标准值、实测值、误差</li></ul></div><div class="m-tip">💡 翻斗卡滞是数据异常的最常见原因</div>'},
+  {title:'雷达水位计校准',cat:'设备操作',tags:['水位计','校准'],content:'<div class="m-section"><h4>月度检查</h4><ul><li>用水准仪复核水位计安装高程</li><li>检查雷达波束范围无遮挡物（树枝、杂草等）</li><li>擦拭传感器表面，清除蜘蛛网</li></ul></div><div class="m-section"><h4>季度比对</h4><ul><li>用水尺在同一时间进行人工读数</li><li>雷达值与人工值误差应≤1cm</li><li>大洪水后必须现场检查传感器状态</li></ul></div>'},
+  {title:'压力式水位计维护',cat:'设备操作',tags:['水位计','传感器'],content:'<div class="m-section"><h4>月度维护</h4><ul><li>清洗压力探头，防止生物附着</li><li>检查通气电缆是否通畅无破损</li><li>检查接线盒密封，防止进水</li></ul></div><div class="m-section"><h4>定期校准</h4><ul><li>每季度进行气压补偿校验</li><li>每年送计量部门检定一次</li><li>更换探头后必须重新校准</li></ul></div>'},
+  {title:'旋桨式流速仪操作',cat:'设备操作',tags:['流速仪','测流'],content:'<div class="m-section"><h4>使用前检查</h4><ul><li>检查旋桨转动灵活性，无卡阻、无异响</li><li>检查信号线连接牢固，防水密封完好</li><li>开机测试信号输出正常</li></ul></div><div class="m-section"><h4>测量规范</h4><ul><li>测流时保证仪器入水深度准确（标识线对齐水面）</li><li>测点历时不少于60秒</li><li>每断面测速垂线不少于3条，每条垂线不少于3个测点</li></ul></div><div class="m-section"><h4>使用后</h4><ul><li>淡水冲洗仪器</li><li>晾干后存放，避免阳光直射</li></ul></div>'},
+  {title:'ADCP走航式测流',cat:'设备操作',tags:['ADCP','测流'],content:'<div class="m-section"><h4>准备</h4><ul><li>安装前检查电池电量≥80%</li><li>检查换能器面清洁无污物</li><li>确认GPS信号正常</li></ul></div><div class="m-section"><h4>测量过程</h4><ul><li>船速控制在0.5-1.5m/s</li><li>底跟踪信号强度≥15dB</li><li>全程保持ADCP在水面下20-50cm</li></ul></div><div class="m-section"><h4>数据管理</h4><ul><li>数据回传后及时备份导出</li><li>原始数据文件不得删除，保存至少3年</li></ul></div>'},
+  {title:'多参数水质仪维护',cat:'设备操作',tags:['水质','传感器'],content:'<div class="m-section"><h4>周维护</h4><ul><li>清洗传感器表面，防止生物附着</li><li>检查探头保护罩无堵塞</li></ul></div><div class="m-section"><h4>月校准</h4><ul><li>pH电极：4.0/7.0/10.0三点校准</li><li>溶解氧：空气饱和法校准</li><li>电导率：1413μS/cm标准液校准</li></ul></div><div class="m-section"><h4>定期更换</h4><ul><li>每季度更换电极保护液</li><li>每半年更换pH电极和溶解氧膜头</li></ul></div>'},
+  {title:'地下水监测设备',cat:'设备操作',tags:['地下水','水位计'],content:'<div class="m-section"><h4>月检查</h4><ul><li>检查探头线缆绝缘电阻≥20MΩ</li><li>清洁探头表面</li><li>检查井口保护装置完整性</li></ul></div><div class="m-section"><h4>季度比对</h4><ul><li>进行水位对比测量，误差≤2cm</li><li>记录地下水温、水位及测量时间</li></ul></div>'},
+  {title:'太阳能供电系统',cat:'设备操作',tags:['太阳能','电源'],content:'<div class="m-section"><h4>光伏板维护</h4><ul><li>每月清洁表面灰尘（软布+清水）</li><li>检查支架紧固无锈蚀</li><li>测量开路电压：12V系统≥21V</li></ul></div><div class="m-section"><h4>蓄电池维护</h4><ul><li>每月检查电压：12V电池≥12.5V</li><li>检查接线端子无氧化</li><li>每季度补充蒸馏水（铅酸电池）</li><li>使用3年后建议更换</li></ul></div><div class="m-tip">⚠️ 电压低于11V将影响RTU正常工作</div>'},
+  {title:'RTU日常维护',cat:'设备操作',tags:['RTU','通信'],content:'<div class="m-section"><h4>月检查</h4><ul><li>检查工作状态指示灯正常</li><li>查看数据上报时间戳，确认通信畅通</li><li>SIM卡信号强度≥15dBm</li><li>检查天线接头防水</li></ul></div><div class="m-section"><h4>季度维护</h4><ul><li>重启RTU，清除缓存</li><li>备份配置文件</li></ul></div><div class="m-section"><h4>升级注意事项</h4><ul><li>固件升级前必须备份配置</li><li>备用RTU应定期通电测试</li></ul></div>'},
+  {title:'数据不上报排查',cat:'故障处理',tags:['故障','通信'],content:'<div class="m-section"><h4>排查步骤</h4><ol><li><b>电源检查</b>：RTU电源指示灯是否亮起，蓄电池电压≥11V</li><li><b>信号检查</b>：SIM卡是否有信号（信号指示灯闪烁）</li><li><b>天线检查</b>：天线是否松动或损坏</li><li><b>连接检查</b>：传感器与RTU连接线是否松脱</li><li><b>平台验证</b>：登录平台查看设备最后在线时间</li></ol></div><div class="m-tip">💡 90%的通信故障是SIM卡欠费或信号弱导致</div>'},
+  {title:'数据异常跳变',cat:'故障处理',tags:['故障','数据'],content:'<div class="m-section"><h4>排查步骤</h4><ol><li><b>物理检查</b>：传感器探头是否被异物遮挡</li><li><b>防水检查</b>：接头是否进水</li><li><b>交叉验证</b>：同一站点其他指标是否也异常</li><li><b>区域对比</b>：对比相邻站点数据，排除区域性干扰</li><li><b>现场复核</b>：用标准仪器对比复核</li></ol></div><div class="m-section"><h4>常见原因</h4><ul><li>翻斗卡滞（雨量计）</li><li>探头附着生物（水质仪）</li><li>电缆接触不良</li></ul></div>'},
+  {title:'通信中断处理',cat:'故障处理',tags:['故障','通信'],content:'<div class="m-section"><h4>GPRS/4G故障</h4><ul><li>检查信号强度，-110dBm以下需加装高增益天线</li><li>查询运营商基站状态</li><li>检查数据流量是否耗尽</li><li>重启RTU尝试重新连网</li></ul></div><div class="m-section"><h4>北斗通信故障</h4><ul><li>检查天线无遮挡，仰角≥15°</li><li>查看北斗卡余额及有效期</li><li>测试短报文收发延迟</li></ul></div>'},
+  {title:'雨量站巡检清单',cat:'巡检规范',tags:['巡检','雨量计'],content:'<div class="m-section"><h4>巡检周期</h4><p>汛期（4-9月）每月1次，非汛期每季度1次</p></div><div class="m-checklist"><label class="m-check"><input type="checkbox"> 承雨器漏斗无堵塞，过滤网完好</label><label class="m-check"><input type="checkbox"> 翻斗翻转灵活，无异响</label><label class="m-check"><input type="checkbox"> 水平气泡居中，仪器水平</label><label class="m-check"><input type="checkbox"> 信号线连接牢固，无破损裸露</label><label class="m-check"><input type="checkbox"> 太阳能板表面清洁，充电正常</label><label class="m-check"><input type="checkbox"> 蓄电池电压≥12V</label><label class="m-check"><input type="checkbox"> RTU指示灯正常（绿灯闪烁）</label><label class="m-check"><input type="checkbox"> 对比人工雨量筒，偏差≤4%</label></div>'},
+  {title:'水位站巡检清单',cat:'巡检规范',tags:['巡检','水位计'],content:'<div class="m-section"><h4>巡检周期</h4><p>汛期每月2次，非汛期每月1次</p></div><div class="m-checklist"><label class="m-check"><input type="checkbox"> 自记水位计运行状态正常</label><label class="m-check"><input type="checkbox"> 水尺桩完好，刻度清晰</label><label class="m-check"><input type="checkbox"> 雷达水位计安装支架稳固</label><label class="m-check"><input type="checkbox"> 探头无遮挡物（树枝、杂草）</label><label class="m-check"><input type="checkbox"> 对比人工水位，误差≤2cm</label><label class="m-check"><input type="checkbox"> 太阳能供电电压正常</label><label class="m-check"><input type="checkbox"> 通信模块信号强度合格</label><label class="m-check"><input type="checkbox"> 数据上报间隔正常</label></div>'},
+  {title:'通信设备维护',cat:'巡检规范',tags:['巡检','通信'],content:'<div class="m-section"><h4>GPRS/4G DTU</h4><ul><li>每月检查信号强度，-110dBm以下加装天线</li><li>检查数据流量，预充值避免欠费</li><li>每季度重启DTU，释放内存</li><li>备用通信链路（短信）每月测试</li></ul></div><div class="m-section"><h4>北斗卫星通信</h4><ul><li>检查天线无遮挡，仰角≥15°</li><li>查看北斗卡余额及有效期</li><li>测试短报文收发延迟≤5分钟</li></ul></div>'},
+  {title:'汛期值班制度',cat:'制度规范',tags:['制度','汛期'],content:'<div class="m-section"><h4>值班要求</h4><ul><li>实行24小时值班，手机保持畅通</li><li>每天8:00、14:00检查数据到报</li><li>降雨期间每1小时查看实时数据</li><li>暴雨预警（橙色及以上）每30分钟查看</li></ul></div><div class="m-section"><h4>应急响应</h4><ul><li>数据中断超2小时立即现场排查</li><li>做好值班记录，交接班说明异常</li><li>汛前检查备品备件库存充足</li></ul></div>'},
+  {title:'野外作业安全',cat:'制度规范',tags:['制度','安全'],content:'<div class="m-section"><h4>基本要求</h4><ul><li>严禁单人作业，至少两人同行</li><li>携带安全装备（安全帽、救生衣、防滑鞋）</li><li>雷雨天气禁止河道、高塔作业</li><li>涉水作业流速＞1.5m/s禁止下水</li></ul></div><div class="m-section"><h4>作业前</h4><ul><li>向值班室报告位置和预计返回时间</li><li>高温天气携带充足饮用水</li><li>了解天气预报，避开恶劣天气</li></ul></div>'},
+  {title:'备品备件管理',cat:'仓库管理',tags:['仓库','备件'],content:'<div class="m-section"><h4>库存规范</h4><ul><li>入库登记：编码、名称、数量、日期</li><li>分类存放：传感器、通信、电源、结构件</li><li>领用需填写申请单，审批后出库</li><li>每季度盘点，核对账实</li><li>电子元器件湿度≤70%</li></ul></div><div class="m-section"><h4>最低库存标准</h4><ul><li>水位计传感器 ≥5个</li><li>太阳能板 ≥3块</li><li>蓄电池 ≥5个</li><li>通信模块 ≥3个</li><li>信号线缆 ≥10根</li></ul></div>'},
+  {title:'数据质量审核',cat:'质量管理',tags:['数据','质量'],content:'<div class="m-section"><h4>日常审核</h4><ul><li>每日检查数据到报率，低于90%查明原因</li><li>数据是否在合理阈值范围</li><li>持续不变（＞3小时）疑为故障</li><li>跳变超3倍标准差需核实</li></ul></div><div class="m-section"><h4>异常处理</h4><ul><li>明显错误数据（负数、超大值）标记无效</li><li>短期缺失可插值补全</li><li>长期缺失备注原因（故障、检修）</li><li>记录操作人和处理时间</li></ul></div>'},
+];
+function renderManuals(cat){
+  var body=document.getElementById('manuals-body');
+  if(!body)return;
+  // 分类筛选条
+  var cats=['全部','设备操作','故障处理','巡检规范','制度规范','仓库管理','质量管理'];
+  var filterHtml='<div class="m-filterbar">';
+  for(var i=0;i<cats.length;i++){
+    var active=(cat===cats[i]||(!cat&&cats[i]==='全部'))?' active':'';
+    filterHtml+='<span class="m-filter'+active+'" onclick="filterManuals(\''+(cats[i]==='全部'?'':cats[i])+'\')">'+cats[i]+'</span>';
+  }
+  filterHtml+='</div>';
+  // 手风琴列表
+  var listHtml='<div class="m-accordion">';
+  for(var j=0;j<_manualsData.length;j++){
+    var m=_manualsData[j];
+    if(cat&&m.cat!==cat)continue;
+    listHtml+='<div class="m-acc-item" data-cat="'+m.cat+'">'
+      +'<div class="m-acc-header" onclick="toggleManual('+j+')">'
+      +'<div class="m-acc-title">'+m.title+'</div>'
+      +'<div class="m-acc-meta"><span class="m-tag">'+m.cat+'</span>'+m.tags.join(' · ')+'</div>'
+      +'<span class="m-acc-arrow" id="m-arrow-'+j+'">▼</span></div>'
+      +'<div class="m-acc-body" id="m-body-'+j+'" style="display:none">'+m.content+'</div>'
+      +'</div>';
+  }
+  listHtml+='</div>';
+  body.innerHTML=filterHtml+listHtml;
+  window._manualsInited=true;
+}
+function filterManuals(cat){
+  renderManuals(cat);
+}
+function toggleManual(idx){
+  var body=document.getElementById('m-body-'+idx);
+  var arrow=document.getElementById('m-arrow-'+idx);
+  if(!body)return;
+  if(body.style.display==='none'){
+    body.style.display='block';
+    arrow.textContent='▲';
+    arrow.style.transform='rotate(0deg)';
+    // 收起其他
+    for(var i=0;i<_manualsData.length;i++){
+      if(i!==idx){
+        var b=document.getElementById('m-body-'+i);
+        var a=document.getElementById('m-arrow-'+i);
+        if(b)b.style.display='none';
+        if(a){a.textContent='▼';a.style.transform='rotate(0deg)';}
+      }
+    }
+  }else{
+    body.style.display='none';
+    arrow.textContent='▼';
+  }
 }
 
 // ===== Inline View Management =====
@@ -1778,7 +2005,7 @@ function _renderDataChart(){
 function _showChartMsg(cvs,msg){if(cvs.parentNode)cvs.parentNode.innerHTML='<div class="empty" style="padding:20px;font-size:12px;color:var(--text-tertiary)">'+msg+'</div>'}
 
 // ===== Startup =====
-(async function(){updateDateTime();var ok=await checkAuth();if(ok){init();loadPartsSites()}})();
+(async function(){updateDateTime();var ok=await checkAuth();if(ok){init()}})();
 </script>
 </body>
 </html>
