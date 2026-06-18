@@ -71,12 +71,12 @@ body{
 .header-weather{font-size:12px;color:var(--text-tertiary);margin-bottom:var(--space-md)}
 .header-weather-row{display:flex;align-items:flex-end;justify-content:space-between}
 .weather-icon-big{font-size:68px;line-height:1}
-.todo-count-wrap{display:flex;align-items:baseline;gap:4px;justify-content:center}
+.todo-count-wrap{display:flex;align-items:baseline;gap:4px;justify-content:flex-end}
 .todo-label{font-size:15px;font-weight:500;color:var(--text-primary)}
 .todo-num{font-size:32px;font-weight:700;color:var(--danger);line-height:1}
 .todo-unit{font-size:14px;color:var(--text-tertiary)}
-.todo-sub{display:flex;gap:var(--space-sm);margin-top:var(--space-sm);font-size:10px;justify-content:center}
-.todo-sub span{padding:2px 8px;border-radius:10px;font-weight:500}
+.todo-sub{display:flex;gap:var(--space-sm);margin-top:var(--space-sm);font-size:10px;justify-content:flex-end}
+.todo-sub span{padding:2px 10px;border-radius:10px;font-weight:500;white-space:nowrap}
 .todo-sub .ts-alert{background:var(--danger-bg);color:var(--danger)}
 .todo-sub .ts-wo{background:var(--brand-light);color:var(--brand)}
 .todo-sub .ts-insp{background:rgba(16,174,255,.08);color:var(--info)}
@@ -131,7 +131,7 @@ body{
 
 /* Level Badge */
 .level-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.level-red{background:var(--danger)}.level-orange{background:var(--warning)}.level-yellow{background:#ffd000}
+.level-red{background:var(--danger)}.level-orange{background:var(--danger)}.level-yellow{background:var(--danger)}.level-green{background:var(--brand)}
 
 /* ===== Stats Row ===== */
 .stats-row{display:flex;gap:var(--space-sm);margin-bottom:var(--space-xl)}
@@ -142,7 +142,7 @@ body{
 .stat-box.warning .sn{color:var(--warning)}
 
 /* ===== Site List Items ===== */
-.sm-item,.si-item{display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-md);background:var(--bg-card);border-bottom:.5px solid var(--divider);cursor:pointer;touch-action:manipulation;transition:background .15s}
+.sm-item,.si-item{display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-md);background:var(--bg-card);border-radius:var(--radius-md);margin-bottom:6px;cursor:pointer;touch-action:manipulation;transition:background .15s}
 .sm-item:active,.si-item:active{background:var(--bg-card-hover)}
 .si-item:first-of-type{border-radius:var(--radius-md) var(--radius-md) 0 0}
 .si-item:last-of-type{border-radius:0 0 var(--radius-md) var(--radius-md);border-bottom:none}
@@ -193,14 +193,14 @@ body{
 .tab-item.active .tab-icon,.tab-item.active .tab-label{color:var(--brand)}
 
 /* ===== Inline Views ===== */
-.inline-view{display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:375px;bottom:0;background:var(--bg-primary);z-index:300;overflow-y:auto}
+.inline-view{display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:375px;bottom:0;background:var(--bg-primary);z-index:300;overflow-y:auto;overflow-x:hidden}
 .inline-view.open{display:block}
 .iv-header{display:flex;align-items:center;gap:var(--space-md);padding:0 var(--space-lg);height:var(--nav-bar-h);background:var(--bg-card);position:sticky;top:0;z-index:10;border-bottom:.5px solid var(--divider)}
 .iv-header .back{font-size:20px;cursor:pointer;padding:4px;user-select:none;color:var(--text-secondary)}
 .iv-header .iv-title{font-size:17px;font-weight:600;color:var(--text-primary);flex:1}
 .iv-header-extra{padding:4px 12px;background:var(--brand-light);color:var(--brand);border-radius:14px;font-size:12px;cursor:pointer;font-weight:500}
 .iv-body{padding:var(--space-lg)}
-.iv-card{background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-sm);box-shadow:var(--shadow-sm)}
+.iv-card{background:var(--bg-card);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-sm);box-shadow:var(--shadow-sm);overflow-wrap:break-word}
 .iv-card:last-child{margin-bottom:0}
 
 /* ===== Site Detail ===== */
@@ -334,16 +334,16 @@ body{
           <div style="display:flex;flex-direction:column;justify-content:flex-end;flex-shrink:0">
             <div class="weather-icon-big" id="m-w-icon">⛅</div>
           </div>
-          <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
+          <div id="todo-col" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
             <div class="todo-count-wrap">
               <span class="todo-label">今日待完成</span>
               <span class="todo-num" id="m-task-total">-</span>
               <span class="todo-unit">项</span>
             </div>
             <div class="todo-sub">
-              <span class="ts-alert" id="m-tc-alert">告警 -</span>
-              <span class="ts-wo" id="m-tc-wo">工单 -</span>
-              <span class="ts-insp" id="m-tc-insp">巡检 -</span>
+              <span class="ts-alert" id="m-tc-alert">告警 0</span>
+              <span class="ts-wo" id="m-tc-wo">工单 0</span>
+              <span class="ts-insp" id="m-tc-insp">巡检 0</span>
             </div>
           </div>
         </div>
@@ -352,16 +352,16 @@ body{
       <!-- Quick Actions -->
       <div class="quick-row">
         <div class="quick-btn" onclick="openPartsApply()">
-          <img src="/icons/备件申请.svg" style="width:44px;height:44px"><span class="quick-btn-label">备件申请</span>
+          <img src="/icons/备件申请.svg" style="width:52px;height:52px"><span class="quick-btn-label">备件申请</span>
         </div>
         <div class="quick-btn" onclick="openManuals()">
-          <img src="/icons/运维规范.svg" style="width:44px;height:44px"><span class="quick-btn-label">运维规范</span>
+          <img src="/icons/运维规范.svg" style="width:52px;height:52px"><span class="quick-btn-label">运维规范</span>
         </div>
         <div class="quick-btn" onclick="loadInspections()">
-          <img src="/icons/巡检计划.svg" style="width:44px;height:44px"><span class="quick-btn-label">巡检清单</span>
+          <img src="/icons/巡检清单.svg" style="width:52px;height:52px"><span class="quick-btn-label">巡检清单</span>
         </div>
         <div class="quick-btn" onclick="openOrdersList()">
-          <img src="/icons/我的工单.svg" style="width:44px;height:44px"><span class="quick-btn-label">我的工单</span>
+          <img src="/icons/我的工单.svg" style="width:52px;height:52px"><span class="quick-btn-label">我的工单</span>
         </div>
       </div>
 
@@ -394,15 +394,8 @@ body{
 
     <!-- ==================== PAGE: ALERTS ==================== -->
     <div class="page" id="page-alerts" style="flex-direction:column;gap:0">
-      <!-- Level filter tabs -->
-      <div class="site-tabs" id="al-level-tabs" style="padding-top:var(--space-sm)">
-        <div class="site-tab active" onclick="filterAlLevel('')">全部</div>
-        <div class="site-tab" onclick="filterAlLevel('red')"><span class="i i-circle" style="background:var(--danger);margin-right:4px"></span>红色</div>
-        <div class="site-tab" onclick="filterAlLevel('orange')"><span class="i i-circle" style="background:var(--warning);margin-right:4px"></span>橙色</div>
-        <div class="site-tab" onclick="filterAlLevel('yellow')"><span class="i i-circle" style="background:#ffd000;margin-right:4px"></span>黄色</div>
-      </div>
       <!-- Status filter tabs -->
-      <div class="site-tabs" id="al-status-tabs">
+      <div class="site-tabs" id="al-status-tabs" style="padding-top:var(--space-sm)">
         <div class="site-tab active" onclick="filterAlStatus('')">全部状态</div>
         <div class="site-tab" onclick="filterAlStatus('pending')">待处理</div>
         <div class="site-tab" onclick="filterAlStatus('resolved')">已办结</div>
@@ -412,9 +405,10 @@ body{
       </div>
       <div class="batch-bar" id="batch-bar" style="display:none">
         <span id="batch-count">已选 0 项</span>
-        <button onclick="batchResolve()">批量办结</button>
+        <button class="batch-select" onclick="toggleAlertAll()">全选</button>
+        <button class="batch-select" onclick="toggleAlertNone()">全不选</button>
+        <button onclick="showBatchResolveSheet()">批量办结</button>
         <button class="batch-primary" onclick="batchConvert()">批量转工单</button>
-        <button onclick="batchClear()">取消</button>
       </div>
       <div id="alerts-list"><div class="loading">加载中...</div></div>
     </div>
@@ -436,6 +430,19 @@ body{
       <div class="bs-actions">
         <button class="bs-btn-cancel" onclick="closeResolveSheet()">取消</button>
         <button class="bs-btn-primary" id="resolve-confirm-btn" onclick="confirmResolve()">确认办结</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Resolve Sheet -->
+  <div class="bs-overlay" id="batch-resolve-sheet">
+    <div class="bs-sheet">
+      <div class="bs-handle"></div>
+      <div class="bs-title">批量办结 — 选择原因</div>
+      <div id="batch-resolve-options"></div>
+      <div class="bs-actions">
+        <button class="bs-btn-cancel" onclick="closeBatchResolveSheet()">取消</button>
+        <button class="bs-btn-primary" id="batch-resolve-confirm" onclick="doBatchResolve()">确认办结</button>
       </div>
     </div>
   </div>
@@ -643,7 +650,7 @@ async function init(){
   allWO=await af('/workorders?limit=50')||[];
   allAlerts=await af('/alerts?limit=200')||[];
   allInsp=await af('/inspections')||[];
-  updateTaskCounter();renderHome();initSwipe();
+  updateTaskCounter();renderHome();initSwipe();alignHomeHeader();
   setInterval(function(){updateDateTime();refreshData()},30000);
 }
 async function refreshData(){
@@ -651,7 +658,7 @@ async function refreshData(){
   allWO=await af('/workorders?limit=50')||[];
   allAlerts=await af('/alerts?limit=200')||[];
   allInsp=await af('/inspections')||[];
-  updateTaskCounter();renderHome();
+  updateTaskCounter();renderHome();alignHomeHeader();
 }
 function updateDateTime(){
   var d=new Date(),days=['日','一','二','三','四','五','六'];
@@ -704,10 +711,34 @@ function updateTaskCounter(){
   }
   var total=aCount+woActive+inspPending;
   var tt=document.getElementById('m-task-total');if(tt)tt.textContent=total||'0';
-  var ta=document.getElementById('m-tc-alert');if(ta)ta.textContent='告警 '+aCount+(expiringSoon?' · '+expiringSoon+'项到期':'');
+  var ta=document.getElementById('m-tc-alert');if(ta)ta.textContent='告警 '+aCount;
   var tw=document.getElementById('m-tc-wo');if(tw)tw.textContent='工单 '+woActive;
-  var ti=document.getElementById('m-tc-insp');if(ti)ti.textContent='巡检 '+inspPending;
+  var ti=document.getElementById('m-tc-insp');if(ti)ti.textContent='巡检 '+inspPending+(expiringSoon?' · '+expiringSoon+'项到期':'');
 }
+
+// ===== 天气图标&待完成项 → 对齐到快捷入口 =====
+function alignHomeHeader(){
+  var firstBtn=document.querySelector('.quick-btn:first-child');
+  var lastBtn=document.querySelector('.quick-btn:last-child');
+  var weatherWrap=document.querySelector('.weather-icon-big')?.parentElement;
+  var todoCol=document.getElementById('todo-col');
+  if(!firstBtn||!lastBtn||!weatherWrap||!todoCol)return;
+  // 1) 天气图标左边界 → 对齐"备件申请"左边界
+  var btn1Rect=firstBtn.getBoundingClientRect();
+  var wRect=weatherWrap.getBoundingClientRect();
+  var offset=Math.round(btn1Rect.left - wRect.left);
+  if(Math.abs(offset)>1)weatherWrap.style.marginLeft=offset+'px';
+  // 2) 今日待完成右边界 → 对齐"我的工单"右边界
+  // 重新读取布局（天气 margin 变更强制重排后）
+  var btn4Right=lastBtn.getBoundingClientRect().right;
+  var colLeft=todoCol.getBoundingClientRect().left;
+  var desiredWidth=Math.round(btn4Right - colLeft);
+  if(desiredWidth>80){
+    todoCol.style.flex='none';
+    todoCol.style.width=desiredWidth+'px';
+  }
+}
+window.addEventListener('resize',alignHomeHeader);
 
 // ===== Swipe Panels =====
 var _currentSwipeIdx=0;
@@ -784,19 +815,13 @@ function togglePin(sid){
 // Panel 2: Inspection Plans (three-column folding: today/week/month)
 var _foldStates={}; // 记住折叠面板的状态，供 30s 刷新时恢复
 function renderInspPlanPanel(){
-  var now=new Date(),today=now.toISOString().substring(0,10),html='';
+  var html='';
   var todayList=[],weekList=[],monthList=[];
-  var weekStart=new Date(now);weekStart.setDate(now.getDate()-(now.getDay()||7)+1);
-  var weekStartStr=weekStart.toISOString().substring(0,10);
-  var nextMonday=new Date(weekStart);nextMonday.setDate(weekStart.getDate()+7);
-  var nextMondayStr=nextMonday.toISOString().substring(0,10);
-  var nextMonth=new Date(now.getFullYear(),now.getMonth()+1,1);
-  var nextMonthStr=nextMonth.toISOString().substring(0,10);
   for(var i=0;i<allInsp.length;i++){
     var p=allInsp[i];if(p.status==='completed')continue;
-    if(p.type==='daily'&&p.start_date===today)todayList.push(p);
-    else if(p.start_date>=today&&p.start_date<nextMondayStr)weekList.push(p);
-    else if(p.start_date>=today&&p.start_date<nextMonthStr)monthList.push(p);
+    if(p.type==='daily')todayList.push(p);
+    else if(p.type==='weekly')weekList.push(p);
+    else if(p.type==='monthly')monthList.push(p);
   }
   html+=_foldableSection('今日计划',todayList,'today');
   html+=_foldableSection('本周计划',weekList,'week');
@@ -852,7 +877,7 @@ function globalSearch(){
   if(wos.length){html+=_searchGroup('工单',wos.slice(0,5),function(w){return '<span class="level-dot level-'+(w.level==='critical'?'red':'yellow')+'"></span>'+w.title+' <span style="font-size:10px;color:var(--text-tertiary)">'+(w.order_no||'')+' · '+(SM[w.status]||w.status)+'</span>'});cnt+=wos.length}
   // Search alerts
   var als=allAlerts.filter(function(a){return a.message.toLowerCase().includes(kw)||a.site_name.toLowerCase().includes(kw)});
-  if(als.length){html+=_searchGroup('预警',als.slice(0,5),function(a){return '<span class="level-dot level-'+a.level+'"></span>'+a.message+' <span style="font-size:10px;color:var(--text-tertiary)">'+a.site_name+'</span>'});cnt+=als.length}
+  if(als.length){html+=_searchGroup('预警',als.slice(0,5),function(a){return a.message+' <span style="font-size:10px;color:var(--text-tertiary)">'+a.site_name+'</span>'});cnt+=als.length}
   // Search inspections
   var ips=allInsp.filter(function(p){return p.plan_name.toLowerCase().includes(kw)||p.site_name.toLowerCase().includes(kw)});
   if(ips.length){html+=_searchGroup('巡检',ips.slice(0,5),function(p){return '<span class="i i-sm" style="margin-right:4px;color:var(--text-tertiary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></span>'+p.plan_name+' <span style="font-size:10px;color:var(--text-tertiary)">'+p.site_name+' · '+(p.start_date||'')+'</span>'});cnt+=ips.length}
@@ -987,14 +1012,8 @@ function handleAbnormalDevice(name,code){
 }
 
 // ===== Alerts =====
-var _alLevelFilter='',_alStatusFilter='';
+var _alStatusFilter='';
 
-function filterAlLevel(level){
-  _alLevelFilter=level;
-  document.querySelectorAll('#al-level-tabs .site-tab').forEach(function(e){e.classList.remove('active')});
-  event.target.classList.add('active');
-  renderAlertList();
-}
 function filterAlStatus(status){
   _alStatusFilter=status;
   document.querySelectorAll('#al-status-tabs .site-tab').forEach(function(e){e.classList.remove('active')});
@@ -1002,19 +1021,20 @@ function filterAlStatus(status){
   renderAlertList();
 }
 
-function renderAlertList(){
+function renderAlertList(keepSel){
   var kw=(document.getElementById('al-filter-inp').value||'').toLowerCase();
   var list=allAlerts;
   if(kw)list=list.filter(function(a){return a.message.toLowerCase().includes(kw)||a.site_name.toLowerCase().includes(kw)});
-  if(_alLevelFilter)list=list.filter(function(a){return a.level===_alLevelFilter});
   if(_alStatusFilter)list=list.filter(function(a){return a.status===_alStatusFilter});
   list.sort(function(a,b){return (b.created_at||'')>(a.created_at||'')?1:-1});
-  _selectedAlerts={};updateBatchBar();
+  if(!keepSel)_selectedAlerts={};
+  updateBatchBar();
   var html='';
   if(!list.length)html='<div class="empty">暂无预警</div>';
   else for(var i=0;i<list.length;i++){
     var a=list[i],chk=_selectedAlerts[a.id]?' checked':'';
-    html+='<div class="al-item"><span class="al-check'+(chk?' checked':'')+'" onclick="event.stopPropagation();toggleAlertSelect('+a.id+');" id="chk-'+a.id+'">'+(chk?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</span><span class="level-dot level-'+a.level+'"></span><span class="al-info" onclick="openAlertDetail('+a.id+')"><div class="al-msg">'+a.message+'</div><div class="al-site">'+a.site_name+'</div></span><span class="al-time">'+(a.created_at||'').substring(5,16)+'</span></div>';
+    var AL_CN={pending:'待处理',acknowledged:'已确认',resolved:'已办结'},AL_CLS={pending:'sb-pending',acknowledged:'sb-process',resolved:'sb-closed'};
+    html+='<div class="al-item"><span class="al-check'+(chk?' checked':'')+'" onclick="event.stopPropagation();toggleAlertSelect('+a.id+');" id="chk-'+a.id+'">'+(chk?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</span><span class="al-info" onclick="openAlertDetail('+a.id+')"><div class="al-msg">'+a.message+' <span class="status-badge '+AL_CLS[a.status]+'" style="font-size:9px;padding:1px 5px;vertical-align:middle">'+(AL_CN[a.status]||a.status)+'</span></div><div class="al-site">'+a.site_name+' · '+(a.created_at||'').substring(0,16)+'</div></span></div>';
   }
   document.getElementById('alerts-list').innerHTML=html;
 }
@@ -1029,7 +1049,53 @@ function updateBatchBar(){
   document.getElementById('batch-count').textContent='已选 '+cnt+' 项';
   bar.style.display=cnt>0?'flex':'none';
 }
+function toggleAlertAll(){
+  // 全选当前可见列表
+  var kw=(document.getElementById('al-filter-inp').value||'').toLowerCase();
+  var list=allAlerts;
+  if(kw)list=list.filter(function(a){return a.message.toLowerCase().includes(kw)||a.site_name.toLowerCase().includes(kw)});
+  if(_alStatusFilter)list=list.filter(function(a){return a.status===_alStatusFilter});
+  for(var i=0;i<list.length;i++)_selectedAlerts[list[i].id]=true;
+  renderAlertList(true);
+}
+function toggleAlertNone(){
+  _selectedAlerts={};
+  renderAlertList();
+}
 function batchClear(){_selectedAlerts={};renderAlertList();}
+var _batchResolveReason='误报';
+function showBatchResolveSheet(){
+  var ids=Object.keys(_selectedAlerts);if(!ids.length)return;
+  _batchResolveReason='误报';
+  var html='';
+  for(var i=0;i<REASONS.length;i++){
+    html+='<div class="bs-opt'+(i===0?' active':'')+'" onclick="selBatchReason(this,\''+REASONS[i]+'\')"><span class="bs-dot"></span>'+REASONS[i]+'</div>';
+  }
+  document.getElementById('batch-resolve-options').innerHTML=html;
+  document.getElementById('batch-resolve-sheet').classList.add('open');
+}
+function selBatchReason(el,reason){
+  _batchResolveReason=reason;
+  document.querySelectorAll('#batch-resolve-options .bs-opt').forEach(function(e){e.classList.remove('active')});
+  el.classList.add('active');
+}
+function closeBatchResolveSheet(){document.getElementById('batch-resolve-sheet').classList.remove('open')}
+async function doBatchResolve(){
+  var ids=Object.keys(_selectedAlerts);if(!ids.length)return;
+  var btn=document.getElementById('batch-resolve-confirm');btn.disabled=true;btn.textContent='办结中...';
+  var ok=0,errs=0;
+  for(var i=0;i<ids.length;i++){
+    try{
+      var r=await afP('/alerts/'+ids[i]+'/resolve',{operator:_user?(_user.real_name||_user.username):'系统',reason:_batchResolveReason});
+      if(r&&r.success)ok++;else errs++;
+    }catch(e){errs++}
+  }
+  btn.disabled=false;btn.textContent='确认办结';
+  closeBatchResolveSheet();
+  showToast('办结: '+ok+' 成功'+(errs?', '+errs+' 失败':''));
+  allAlerts=allAlerts.filter(function(a){return !_selectedAlerts[a.id]});
+  _selectedAlerts={};updateTaskCounter();renderAlertList();renderHome();
+}
 async function batchResolve(){
   var ids=Object.keys(_selectedAlerts);if(!ids.length)return;
   if(!confirm('确认批量办结 '+ids.length+' 条预警?'))return;
@@ -1052,11 +1118,14 @@ function filterAlerts(){renderAlertList()}
 async function openAlertDetail(aid){
   currentAlertId=aid;var a=allAlerts.find(function(x){return x.id===aid});if(!a)return;
   document.getElementById('alert-detail').classList.add('open');
-  var levelNames={red:'红色',orange:'橙色',yellow:'黄色'},levelColors={red:'var(--danger)',orange:'var(--warning)',yellow:'#ffd000'};
-  var html='<div class="iv-card al-detail"><div class="al-no">#'+a.id+'</div><div class="al-title">'+a.message+'</div>';
-  html+='<div class="al-meta"><span class="tag">'+a.site_name+'</span><span class="tag" style="color:'+(levelColors[a.level]||'#999')+'">级别:'+(levelNames[a.level]||a.level)+'</span><span class="tag">'+a.metric+'</span><span class="tag">值:'+a.value+'</span></div>';
-  html+='<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px">时间: '+(a.created_at||'').substring(0,16)+'</div>';
-  html+='<div class="al-actions"><button class="btn-sm" style="background:var(--brand);color:#fff" onclick="showResolveSheet('+a.id+')">办结</button><button class="btn-sm" style="background:var(--info);color:#fff" onclick="doConvert('+a.id+')">转工单</button></div></div>';
+  var AL_CN={pending:'待处理',acknowledged:'已确认',resolved:'已办结'},AL_CLS={pending:'sb-pending',acknowledged:'sb-process',resolved:'sb-closed'};
+  var html='<div class="iv-card al-detail">';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="status-badge '+AL_CLS[a.status]+'" style="font-size:11px">'+(AL_CN[a.status]||a.status)+'</span><span style="font-size:10px;color:var(--text-tertiary)">#'+a.id+'</span></div>';
+  html+='<div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px">'+a.message+'</div>';
+  html+='<div style="font-size:12px;color:var(--brand);margin-bottom:4px">📍 '+a.site_name+'</div>';
+  html+='<div style="font-size:11px;color:var(--text-tertiary)">'+(a.created_at||'').substring(0,16)+'</div>';
+  if(a.status!=='resolved')html+='<div style="margin-top:12px;display:flex;gap:8px"><button class="btn-sm" style="background:var(--brand);color:#fff" onclick="showResolveSheet('+a.id+')">办结</button><button class="btn-sm" style="background:var(--info);color:#fff" onclick="doConvert('+a.id+')">转工单</button></div>';
+  html+='</div>';
   document.getElementById('alert-detail-body').innerHTML=html;
 }
 function closeAlertDetail(){document.getElementById('alert-detail').classList.remove('open');currentAlertId=null}
@@ -1114,7 +1183,7 @@ async function openWoDetail(orderNo){
   var acts=getWOActions(s);
   if(acts.length){html+='<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">';for(var i=0;i<acts.length;i++){html+='<button class="btn-sm" style="background:'+acts[i].bg+';color:#fff" onclick="doWOAction(\''+orderNo+'\',\''+acts[i].st+'\')">'+acts[i].label+'</button>'}html+='</div>'}
   // Photo upload
-  html+='<div style="margin-top:12px;padding:10px;background:var(--bg-primary);border-radius:8px;font-size:12px;color:var(--text-secondary)"><div style="margin-bottom:6px;font-weight:500;display:flex;align-items:center;gap:4px"><span class="i i-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>上传凭证（可选）</div><div style="display:flex;gap:8px;align-items:center"><input type="file" id="wo-photo-'+orderNo+'" accept="image/*" capture="environment" style="flex:1;font-size:11px" onchange="_previewPhoto(this,\'preview-'+orderNo+'\')"><div id="preview-'+orderNo+'" style="width:56px;height:56px;border-radius:6px;border:1px dashed var(--border-color);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);overflow:hidden;flex-shrink:0;background:var(--bg-card)">预览</div></div></div>';
+  html+='<div style="margin-top:12px;padding:10px;background:var(--bg-primary);border-radius:8px;font-size:12px;color:var(--text-secondary)"><div style="margin-bottom:6px;font-weight:500;display:flex;align-items:center;gap:4px"><span class="i i-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>上传凭证（可选）</div><div style="display:flex;gap:8px;align-items:center"><label style="flex:1;min-width:0;display:flex;align-items:center;gap:4px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:6px;cursor:pointer;overflow:hidden"><input type="file" id="wo-photo-'+orderNo+'" accept="image/*" capture="environment" style="width:0;height:0;opacity:0;position:absolute" onchange="_previewPhoto(this,\'preview-'+orderNo+'\')"><span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">选择照片</span></label><div id="preview-'+orderNo+'" style="width:56px;height:56px;border-radius:6px;border:1px dashed var(--border-color);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);overflow:hidden;flex-shrink:0;background:var(--bg-card)">预览</div></div></div>';
   // 流转时间线
   try{
     var tl=await af('/timeline?source_type=order&limit=50');
@@ -1157,7 +1226,12 @@ function getWOActions(status){
     acceptance:[{st:'closed',label:'办结',bg:'#07C160'}],
     closed:[]
   };
-  return m[status]||[];
+  // 审核/验收操作仅管理员可见
+  var acts=m[status]||[];
+  var isAdmin=_user&&_user.role==='admin';
+  if(status==='reviewing'&&!isAdmin)return[];
+  if(status==='acceptance'&&!isAdmin)return[];
+  return acts;
 }
 async function doWOAction(orderNo,newStatus){
   if(_woBusy)return;_woBusy=true;
@@ -1181,7 +1255,7 @@ async function doWOAction(orderNo,newStatus){
     }catch(e){errMsg=e.name==='AbortError'?'服务器繁忙，正在后台处理':'网络错误';if(attempt<1)await new Promise(function(cb){setTimeout(cb,1000)})}
   }
   _woBusy=false;
-  if(success){showToast('操作成功');if(window[imgKey])delete window[imgKey];_backFromWODetail();refreshData();setTimeout(function(){document.getElementById('wo-list')&&document.getElementById('wo-list').classList.add('open')},100)}
+  if(success){showToast('操作成功');if(window[imgKey])delete window[imgKey];await refreshData();openWoDetail(orderNo)}
   else showToast('操作失败: '+errMsg+'，请刷新确认');
 }
 

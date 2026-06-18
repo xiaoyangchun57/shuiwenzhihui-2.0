@@ -980,6 +980,16 @@ def generate_sensor_data():
         # === 天气数据 ===
         # 启动时尝试获取实时天气（不插入模拟数据，让 API 请求时自动刷新）
         fetch_real_weather()
+        
+        # === 离线设备告警 ===
+        offline_devices = db.execute("""
+            SELECT d.site_id, d.device_name, d.device_code, s.name as site_name
+            FROM device_shadows d JOIN sites s ON d.site_id=s.id
+            WHERE d.status='offline'
+        """).fetchall()
+        for dev in offline_devices:
+            create_alert_internal(db, dev['site_id'], 'device_status', 0, 'yellow',
+                f"设备离线: {dev['device_name']} ({dev['device_code']}) · {dev['site_name']}")
     except Exception as e:
         print(f'[Sim] 数据生成异常: {e}')
     finally:
@@ -1545,6 +1555,35 @@ def update_workorder_status(order_no):
                    ('order', 0, new_status, operator, f'工单{order_no} → {event_label}'))
         db.commit()
         return jsonify({'success': True})
+
+@app.route('/api/workorders/<orderNo>/photos')
+@login_required
+def workorder_photos(orderNo):
+    """返回工单关联的巡检照片（通过站点+检查项描述匹配）"""
+    with get_db() as db:
+        wo = db.execute("SELECT * FROM work_orders WHERE order_no=?", (orderNo,)).fetchone()
+        if not wo:
+            return jsonify({'error': '工单不存在'}), 404
+        # 从描述中提取可能的检查项名称
+        desc = wo.get('description', '')
+        check_items = []
+        if '检查项: ' in desc:
+            check_items.append(desc.split('检查项: ')[-1].strip())
+        # 按站点匹配已完成的巡检任务（有照片的）
+        photos = []
+        if wo.get('site_id'):
+            rows = db.execute(
+                "SELECT check_item, photo, remark, check_time FROM inspection_tasks WHERE site_id=? AND photo IS NOT NULL AND photo != '' ORDER BY check_time DESC",
+                (wo['site_id'],)
+            ).fetchall()
+            for r in rows:
+                photos.append({
+                    'check_item': r['check_item'],
+                    'photo': r['photo'],
+                    'remark': r['remark'] or '',
+                    'time': r['check_time'] or '',
+                })
+        return jsonify({'success': True, 'photos': photos})
 
 @app.route('/api/workorders/statistics')
 @login_required
@@ -2897,7 +2936,13 @@ if __name__ == '__main__':
             for sid in [5, 108, 193]:
                 db.execute("UPDATE device_shadows SET status='offline', last_data_time=NULL WHERE site_id=?", (sid,))
                 site = db.execute("SELECT name FROM sites WHERE id=?", (sid,)).fetchone()
-                if site: print(f"[Seed] 预设离线站点: {site['name']} (id={sid})")
+                if site:
+                    print(f"[Seed] 预设离线站点: {site['name']} (id={sid})")
+                    # 生成离线告警
+                    devs = db.execute("SELECT device_name, device_code FROM device_shadows WHERE site_id=?", (sid,)).fetchall()
+                    for dev in devs:
+                        create_alert_internal(db, sid, 'device_status', 0, 'yellow',
+                            f"设备离线: {dev['device_name']} ({dev['device_code']}) · {site['name']}")
             db.commit()
     except Exception as e:
         print(f"[Seed] 预设离线站点跳过: {e}")
