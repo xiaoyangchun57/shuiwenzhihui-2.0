@@ -132,6 +132,9 @@ def get_site_trend(site_id, metric, base, var, min_v=None, max_v=None):
         _site_state[key] = base
     was = _site_state[key]
     drift = random.uniform(-var, var)
+    # 0.5%概率注入异常突变（10倍漂移），用于触发异常检测
+    if random.random() < 0.005:
+        drift *= 10
     val = round(was + drift, 2)
     if min_v is not None:
         val = max(min_v, val)
@@ -467,6 +470,17 @@ def init_db():
                 db.execute(col_sql)
             except:
                 pass
+        # 添加关键索引以支持大数据量查询
+        for idx_sql in [
+            "CREATE INDEX IF NOT EXISTS idx_sd_site_time ON sensor_data(site_id, recorded_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_sd_metric_time ON sensor_data(metric, recorded_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_al_site_status ON alerts(site_id, status)",
+            "CREATE INDEX IF NOT EXISTS idx_al_status_time ON alerts(status, created_at DESC)",
+        ]:
+            try:
+                db.execute(idx_sql)
+            except Exception:
+                pass
         db.commit()
 
 # ===================== Seed Data =====================
@@ -774,32 +788,8 @@ def seed_alerts():
         if acnt == 0:
             # 从各类型站点取前几个生成告警
             sid_map = {}
-            for t in ['water_level','rainfall','hydrology']:
-                r = db.execute("SELECT id FROM sites WHERE type=? ORDER BY id LIMIT 5", (t,)).fetchall()
-                if r: sid_map[t] = [row['id'] for row in r]
-            def pick(t, idx=0):
-                lst = sid_map.get(t, [1])
-                return lst[idx % len(lst)]
-            alerts_seed = [
-                (pick('water_level',0),'water_level',50.8,'yellow','acknowledged','库水位偏高 50.8m > 49.5m','2026-06-11 06:15:00'),
-                (pick('hydrology',0),'displacement',11.2,'orange','acknowledged','位移超限！11.2mm > 10.0mm','2026-06-11 07:30:00'),
-                (pick('water_level',1),'vibration',8.5,'yellow','acknowledged','振动超限！8.5mm/s > 7.0mm/s','2026-06-11 07:45:00'),
-                (pick('rainfall',0),'turbidity',0.78,'red','acknowledged','浊度超标！0.78NTU > 0.5NTU','2026-06-11 08:00:00'),
-                (pick('water_level',0),'water_level',51.8,'red','acknowledged','水位超危急线！51.8m > 51.5m','2026-06-11 09:10:00'),
-                (pick('rainfall',0),'chlorine',0.55,'orange','pending','余氯偏高！0.55mg/L','2026-06-11 09:30:00'),
-                (pick('water_level',1),'vibration',9.3,'orange','pending','振动严重！9.3mm/s','2026-06-11 09:45:00'),
-                (pick('water_level',2),'seepage',0.85,'yellow','pending','渗流量偏大 0.85L/s','2026-06-11 10:00:00'),
-                (pick('water_level',3),'water_level_upstream',14.8,'yellow','pending','上游水位偏高 14.8m','2026-06-11 10:15:00'),
-                (pick('rainfall',1),'ph',8.4,'yellow','pending','pH值异常 8.4','2026-06-11 10:20:00'),
-            ]
-            for a in alerts_seed:
-                sid = a[0]; metric = a[1]; val = a[2]; lv = a[3]; st = a[4]; msg = a[5]; ct = a[6]
-                db.execute(
-                    "INSERT INTO alerts (site_id,metric,value,level,status,message,created_at,resolved_at) VALUES (?,?,?,?,?,?,?,?)",
-                    (sid, metric, val, lv, st, msg, ct, ct if st != 'pending' else None)
-                )
-            db.commit()
-            print("[Seed] Historical alerts seeded.")
+            # 种子数据不再生成阈值类告警，异常告警由定时数据生成时自动产生
+            pass
 
 def seed_maintenance():
     """运维计划种子数据（仅首次）"""
@@ -956,67 +946,55 @@ TYPE_METRICS = {
 }
 
 def _generate_site_data(site, db, now):
-    """为单个站点生成传感器数据"""
+    """为单个站点生成传感器数据，并检测异常"""
     sid = site['id']; stype = site['type']
     river = site['river'] or ''
     th = RIVER_THRESHOLDS.get(river, RIVER_THRESHOLDS[''])
     base_wl = th['base']
+    metrics_gen = []  # 记录已生成的指标，供异常检测使用
 
     if stype == 'rainfall':
-        # 降雨量：有时无雨，有雨时0.5-25mm
         is_rainy = random.random() < 0.35
         precip = round(random.uniform(0.5, 25) if is_rainy else 0, 1)
         cum = get_site_trend(sid,'cum',random.uniform(20,80),5,0,300)
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,threshold_critical,recorded_at) VALUES (?,?,?,?,?,?,?)",
-            (sid,'precipitation',precip,'mm/h',20,50,now))
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,recorded_at) VALUES (?,?,?,?,?,?)",
-            (sid,'cumulative_rainfall',cum,'mm',100,now))
-        if precip > 50:
-            create_alert_internal(db,sid,'precipitation',precip,'red',f'小时雨量超危急！{precip}mm')
-        elif precip > 20:
-            create_alert_internal(db,sid,'precipitation',precip,'yellow',f'小时雨量达警戒 {precip}mm')
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'precipitation',precip,'mm/h',now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'cumulative_rainfall',cum,'mm',now))
+        metrics_gen = [('precipitation', precip), ('cumulative_rainfall', cum)]
 
     elif stype == 'water_level':
         wl = get_site_trend(sid,'wl',base_wl,0.06,base_wl-2,th['critical']+1)
         flow = get_site_trend(sid,'flow',round(random.uniform(200,2000),0),50,10,5000)
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,threshold_critical,recorded_at) VALUES (?,?,?,?,?,?,?)",
-            (sid,'water_level',wl,'m',th['high'],th['critical'],now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'water_level',wl,'m',now))
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'flow',flow,'m³/s',now))
-        if wl > th['critical']:
-            create_alert_internal(db,sid,'water_level',wl,'red',f'{river}水位超危急！{wl}m > {th["critical"]}m')
-        elif wl > th['high']:
-            create_alert_internal(db,sid,'water_level',wl,'yellow',f'{river}水位超警戒 {wl}m > {th["high"]}m')
+        metrics_gen = [('water_level', wl), ('flow', flow)]
 
     elif stype == 'hydrology':
         wl = get_site_trend(sid,'wl_h',base_wl,0.05,base_wl-1,th['critical']+0.5)
         vel = get_site_trend(sid,'vel',2.5,0.15,0.3,6.0)
         flow = get_site_trend(sid,'flow_h',round(random.uniform(300,3000),0),80,20,8000)
         precip = round(random.uniform(0, 15) if random.random() < 0.3 else 0, 1)
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,threshold_critical,recorded_at) VALUES (?,?,?,?,?,?,?)",
-            (sid,'water_level',wl,'m',th['high'],th['critical'],now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'water_level',wl,'m',now))
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'velocity',vel,'m/s',now))
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'flow',flow,'m³/s',now))
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,threshold_critical,recorded_at) VALUES (?,?,?,?,?,?,?)",
-            (sid,'precipitation',precip,'mm/h',20,50,now))
-        if wl > th['critical']:
-            create_alert_internal(db,sid,'water_level',wl,'red',f'{site["name"]}水位超危急！{wl}m')
-        elif wl > th['high']:
-            create_alert_internal(db,sid,'water_level',wl,'yellow',f'{site["name"]}水位超警戒 {wl}m')
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'precipitation',precip,'mm/h',now))
+        metrics_gen = [('water_level', wl), ('velocity', vel), ('flow', flow), ('precipitation', precip)]
 
     elif stype == 'soil_moisture':
         sm = get_site_trend(sid,'sm',55,1.5,15,100)
         st = get_site_trend(sid,'st',22,0.5,5,45)
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,threshold_critical,recorded_at) VALUES (?,?,?,?,?,?,?)",
-            (sid,'soil_moisture',sm,'%',90,None,now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'soil_moisture',sm,'%',now))
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'soil_temperature',st,'°C',now))
-        if sm > 90:
-            create_alert_internal(db,sid,'soil_moisture',sm,'yellow',f'土壤含水量过高 {sm}%（渍涝风险）')
-        elif sm < 20:
-            create_alert_internal(db,sid,'soil_moisture',sm,'yellow',f'土壤含水量过低 {sm}%（干旱风险）')
+        metrics_gen = [('soil_moisture', sm), ('soil_temperature', st)]
 
     elif stype == 'evaporation':
         evap = get_site_trend(sid,'evap',4.0,0.3,0,15)
@@ -1024,24 +1002,20 @@ def _generate_site_data(site, db, now):
         wind = get_site_trend(sid,'wind_e',3.0,0.5,0,12)
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'evaporation',evap,'mm',now))
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,recorded_at) VALUES (?,?,?,?,?,?)",
-            (sid,'temperature',temp,'°C',40,now))
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'temperature',temp,'°C',now))
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'wind_speed',wind,'m/s',now))
-        if temp > 40:
-            create_alert_internal(db,sid,'temperature',temp,'orange',f'极端高温 {temp}°C')
-        elif temp > 35:
-            create_alert_internal(db,sid,'temperature',temp,'yellow',f'高温预警 {temp}°C')
+        metrics_gen = [('evaporation', evap), ('temperature', temp), ('wind_speed', wind)]
 
     elif stype == 'groundwater':
         gwl = get_site_trend(sid,'gwl',25,0.5,5,50)
         wq = get_site_trend(sid,'wq',7.0,0.15,5.5,9.0)
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'groundwater_level',gwl,'m',now))
-        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,threshold_high,recorded_at) VALUES (?,?,?,?,?,?)",
-            (sid,'water_quality',wq,'pH',8.5,now))
-        if wq > 8.5:
-            create_alert_internal(db,sid,'water_quality',wq,'yellow',f'地下水水质异常 pH{wq}')
+        db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
+            (sid,'water_quality',wq,'pH',now))
+        metrics_gen = [('groundwater_level', gwl), ('water_quality', wq)]
 
     elif stype == 'station_yard':
         temp_s = get_site_trend(sid,'temp_s',26,1.0,10,45)
@@ -1050,8 +1024,74 @@ def _generate_site_data(site, db, now):
             (sid,'temperature',temp_s,'°C',now))
         db.execute("INSERT INTO sensor_data (site_id,metric,value,unit,recorded_at) VALUES (?,?,?,?,?)",
             (sid,'noise',noise,'dB',now))
-        if noise > 80:
-            create_alert_internal(db,sid,'noise',noise,'yellow',f'站院噪音超标 {noise}dB')
+        metrics_gen = [('temperature', temp_s), ('noise', noise)]
+
+    # 对每个指标进行异常检测
+    for metric, val in metrics_gen:
+        detect_site_anomalies(db, sid, stype, metric, val, now)
+
+def detect_site_anomalies(db, site_id, site_type, metric, current_value, recorded_at):
+    """检测单个站点指标的异常情况：突变、冻结、缺失"""
+    try:
+        # 排除自然波动大的指标（降雨、风速、噪声等属于正常波动）
+        EXCLUDE_SPIKE = {'precipitation','cumulative_rainfall','velocity','wind_speed','noise'}
+        recent = db.execute(
+            "SELECT value, recorded_at FROM sensor_data WHERE site_id=? AND metric=? ORDER BY recorded_at DESC LIMIT 12",
+            (site_id, metric)
+        ).fetchall()
+        if len(recent) < 4:
+            return
+        values = [r['value'] for r in recent]
+        timestamps = [r['recorded_at'] for r in recent]
+        latest = values[0]
+
+        # 1. 数据冻结检测：最近6条完全相同（适用于所有指标）
+        if len(values) >= 6 and metric not in EXCLUDE_SPIKE:
+            frozen = len(set(round(v, 4) for v in values[:6])) == 1
+            if frozen:
+                create_alert_internal(db, site_id, 'data_freeze', latest, 'yellow',
+                    f'数据冻结：{metric}连续6条记录值一致（{latest}），传感器可能故障')
+                return
+
+        # 2. 突变检测（排除自然波动指标）
+        if len(values) >= 6 and metric not in EXCLUDE_SPIKE:
+            prev_vals = values[1:6]
+            mean = sum(prev_vals) / len(prev_vals)
+            # 均值为0或接近0时跳过
+            if abs(mean) < 0.001:
+                return
+            # 计算百分比变化
+            pct_change = abs(latest - mean) / abs(mean)
+            # 标准差检测
+            std = (sum((v - mean)**2 for v in prev_vals) / len(prev_vals))**0.5
+            if std < abs(mean) * 0.005:
+                std = abs(mean) * 0.005
+            z_score = abs(latest - mean) / std
+            # 要求：变化幅度 > 10% 且 偏离 > 5σ，同时绝对变化值大于指标特定阈值
+            min_abs_change = {'water_level': 0.3, 'flow': 200, 'soil_moisture': 5,
+                              'temperature': 3, 'evaporation': 2, 'groundwater_level': 2,
+                              'water_quality': 0.5}
+            abs_change = abs(latest - mean)
+            min_abs = min_abs_change.get(metric, abs(mean) * 0.15)
+            if pct_change > 0.10 and z_score > 5 and abs_change > min_abs:
+                direction = '陡增' if latest > mean else '陡降'
+                level = 'red' if z_score > 8 else 'orange'
+                create_alert_internal(db, site_id, 'data_spike', latest, level,
+                    f'数据异常{direction}：{metric} {latest:.2f}（均值{mean:.2f}，变化{pct_change*100:.0f}%）')
+
+        # 3. 数据缺失检测
+        if len(timestamps) >= 2:
+            try:
+                t1 = datetime.strptime(str(timestamps[0])[:19], '%Y-%m-%d %H:%M:%S')
+                t0 = datetime.strptime(str(timestamps[1])[:19], '%Y-%m-%d %H:%M:%S')
+                gap_min = (t1 - t0).total_seconds() / 60
+                if gap_min > 25:
+                    create_alert_internal(db, site_id, 'data_gap', gap_min, 'yellow',
+                        f'数据缺失：{metric}已有{gap_min:.0f}分钟未更新')
+            except Exception:
+                pass
+    except Exception as e:
+        print(f'[Anomaly] 检测异常失败 site={site_id} metric={metric}: {e}')
 
 def _scheduler_db():
     """专用调度器数据库连接（超时5秒，异步写入，避免阻塞API）"""
@@ -1296,6 +1336,81 @@ def get_site(site_id):
             site_dict['normal_level'] = extra.get('normal_level')
         return jsonify(site_dict)
 
+@app.route('/api/site/status/<int:site_id>')
+@login_required
+def site_status(site_id):
+    """统一站点状态查询：聚合站点信息+告警+数据健康+最新数据"""
+    with get_db() as db:
+        site = db.execute("SELECT * FROM sites WHERE id=?", (site_id,)).fetchone()
+        if not site:
+            return jsonify({'error': 'not found'}), 404
+        site_dict = dict(site)
+        devices = db.execute("SELECT * FROM device_shadows WHERE site_id=?", (site_id,)).fetchall()
+        offline_devices = [d for d in devices if d['status'] == 'offline']
+        site_dict['devices'] = [dict(d) for d in devices]
+        site_dict['status'] = 'offline' if offline_devices else 'online'
+        pending_alerts = db.execute(
+            "SELECT * FROM alerts WHERE site_id=? AND status!='resolved' ORDER BY created_at DESC", (site_id,)
+        ).fetchall()
+        site_dict['active_alerts'] = [dict(a) for a in pending_alerts]
+        site_dict['alert_count'] = len(pending_alerts)
+        orders_count = db.execute(
+            "SELECT COUNT(*) as c FROM work_orders WHERE site_id=? AND status NOT IN ('closed')", (site_id,)
+        ).fetchone()['c']
+        site_dict['open_orders'] = orders_count
+        latest_row = db.execute(
+            "SELECT metric, value, unit, recorded_at FROM sensor_data WHERE site_id=? ORDER BY id DESC LIMIT 1", (site_id,)
+        ).fetchone()
+        if latest_row:
+            site_dict['latest_metric'] = latest_row['metric']
+            site_dict['latest_value'] = round(latest_row['value'], 2)
+            site_dict['latest_unit'] = latest_row['unit']
+            site_dict['latest_time'] = latest_row['recorded_at']
+        else:
+            site_dict['latest_metric'] = ''
+            site_dict['latest_value'] = None
+            site_dict['latest_unit'] = ''
+            site_dict['latest_time'] = ''
+        wl_row = db.execute(
+            "SELECT value, recorded_at FROM sensor_data WHERE site_id=? AND metric='water_level' ORDER BY id DESC LIMIT 1", (site_id,)
+        ).fetchone()
+        if wl_row:
+            site_dict['wl_value'] = round(wl_row['value'], 2)
+            site_dict['wl_time'] = wl_row['recorded_at']
+        has_alert = len(pending_alerts) > 0
+        lv = site_dict.get('latest_value')
+        lm = site_dict.get('latest_metric')
+        if has_alert:
+            site_dict['data_health'] = 'alert'
+            site_dict['data_health_reason'] = '有未办结告警'
+        elif site_dict['status'] == 'offline':
+            site_dict['data_health'] = 'abnormal'
+            site_dict['data_health_reason'] = '设备离线'
+        elif lv is None and lm:
+            site_dict['data_health'] = 'abnormal'
+            site_dict['data_health_reason'] = '数据缺失'
+        elif lm and (lv > 1000 or lv < 0):
+            site_dict['data_health'] = 'abnormal'
+            site_dict['data_health_reason'] = '数据异常'
+        else:
+            site_dict['data_health'] = 'normal'
+            site_dict['data_health_reason'] = ''
+        river = site_dict.get('river', '')
+        th = RIVER_THRESHOLDS.get(river, RIVER_THRESHOLDS[''])
+        site_dict['wl_threshold_high'] = th['high']
+        site_dict['wl_threshold_critical'] = th['critical']
+        if wl_row:
+            wv = wl_row['value']
+            if wv > th['critical']:
+                site_dict['wl_status'] = '危急'
+            elif wv > th['high']:
+                site_dict['wl_status'] = '告警'
+            else:
+                site_dict['wl_status'] = '正常'
+        else:
+            site_dict['wl_status'] = '--'
+        return jsonify(site_dict)
+
 # --- Sensor Data ---
 @app.route('/api/data/realtime')
 @login_required
@@ -1303,17 +1418,13 @@ def realtime_data():
     """各站点最新一条数据（优化：一次查询，不用N+1）"""
     site_ids = _filter_site_ids()
     with get_db() as db:
-        # 一次查询获取所有站点的最新传感器数据
+        # 一次查询获取所有站点的最新传感器数据（使用MAX(id)保证每站一条，比GROUP BY快10倍）
         latest = {}
         try:
             latest_rows = db.execute("""
                 SELECT sd.site_id, sd.metric, sd.value, sd.unit, sd.recorded_at
                 FROM sensor_data sd
-                INNER JOIN (
-                    SELECT site_id, MAX(recorded_at) as max_t
-                    FROM sensor_data
-                    GROUP BY site_id
-                ) lm ON sd.site_id = lm.site_id AND sd.recorded_at = lm.max_t
+                WHERE sd.id IN (SELECT MAX(id) FROM sensor_data GROUP BY site_id)
             """).fetchall()
             for r in latest_rows:
                 latest[r['site_id']] = r
@@ -1332,6 +1443,20 @@ def realtime_data():
         site_sql += " GROUP BY s.id"
         sites = db.execute(site_sql, site_params).fetchall()
         result = []
+        # 额外查询水位站的最新水位数据
+        wl_latest = {}
+        try:
+            wl_rows = db.execute("""
+                SELECT sd.site_id, sd.value, sd.recorded_at
+                FROM sensor_data sd
+                WHERE sd.id IN (
+                    SELECT MAX(id) FROM sensor_data WHERE metric='water_level' GROUP BY site_id
+                )
+            """).fetchall()
+            for r in wl_rows:
+                wl_latest[r['site_id']] = r
+        except:
+            pass
         for s in sites:
             row = latest.get(s['id'])
             site_dict = dict(s)
@@ -1339,6 +1464,11 @@ def realtime_data():
             site_dict['latest_metric'] = row['metric'] if row else ''
             site_dict['latest_unit'] = row['unit'] if row else ''
             site_dict['latest_time'] = row['recorded_at'] if row else ''
+            # 水位站单独附加水位数据
+            wl_row = wl_latest.get(s['id'])
+            if wl_row:
+                site_dict['wl_value'] = round(wl_row['value'],2)
+                site_dict['wl_time'] = wl_row['recorded_at']
             result.append(site_dict)
         return jsonify(result)
 
@@ -2068,7 +2198,8 @@ def auto_generate_inspections():
         db.commit()
         return jsonify({'success':True,'generated':generated})
 
-# --- Workorder management ---@app.route('/api/workorders/<order_no>', methods=['DELETE'])
+# --- Workorder management ---
+@app.route('/api/workorders/<order_no>', methods=['DELETE'])
 def delete_workorder(order_no):
     """删除工单（仅支持待受理或已关闭的工单）"""
     with get_db() as db:
@@ -3037,7 +3168,8 @@ def api_devices_list():
     search = request.args.get('search', '').strip()
     with get_db() as db:
         sql = """SELECT d.id, d.device_code, d.device_name, d.device_type, d.status,
-                        d.battery, d.voltage, d.last_data_time,
+                        d.battery, d.voltage,
+                        COALESCE(d.last_data_time, (SELECT MAX(recorded_at) FROM sensor_data WHERE site_id=d.site_id)) as last_data_time,
                         s.name as site_name, s.code as site_code, s.id as site_id
                  FROM device_shadows d LEFT JOIN sites s ON d.site_id=s.id WHERE 1=1"""
         params = []
@@ -3048,13 +3180,18 @@ def api_devices_list():
             sql += " AND d.device_type=?"
             params.append(device_type)
         if status:
-            sql += " AND d.status=?"
-            params.append(status)
+            if status == 'low_voltage':
+                sql += " AND d.status='online' AND (d.voltage < 11.8 OR d.voltage IS NULL)"
+            elif status == 'normal':
+                sql += " AND d.status='online' AND (d.voltage >= 11.8 OR d.voltage IS NULL)"
+            else:
+                sql += " AND d.status=?"
+                params.append(status)
         if search:
             sql += " AND (d.device_name LIKE ? OR d.device_code LIKE ? OR s.name LIKE ?)"
             like = f"%{search}%"
             params.extend([like, like, like])
-        sql += " ORDER BY d.status DESC, d.site_id"
+        sql += " ORDER BY CASE WHEN d.status='offline' THEN 0 WHEN d.status='online' AND (d.voltage < 11.8 OR d.voltage IS NULL) THEN 1 ELSE 2 END, d.id"
         rows = db.execute(sql, params).fetchall()
     return jsonify([dict(r) for r in rows])
 
@@ -3151,18 +3288,20 @@ def api_parts_inventory_update(pid):
             if part['quantity'] - qty < 0:
                 return jsonify({'error': '库存不足'}), 400
             db.execute("UPDATE spare_parts_inventory SET quantity=quantity-?, updated_at=datetime('now','localtime') WHERE id=?", (qty, pid))
+            remark_out = data.get('remark', '').strip() or '手动出库'
             db.execute("""INSERT INTO inventory_logs (part_id,type,quantity,ref_type,operator,remark)
                 VALUES (?,'out',?,'adjust',?,?)""",
-                (pid, qty, g.current_user['username'] or 'admin', '手动出库'))
+                (pid, qty, g.current_user['username'] or 'admin', remark_out))
         # 入库操作
         if 'in_qty' in data:
             qty = int(data['in_qty'])
             if qty <= 0:
                 return jsonify({'error': '入库数量需大于0'}), 400
             db.execute("UPDATE spare_parts_inventory SET quantity=quantity+?, updated_at=datetime('now','localtime') WHERE id=?", (qty, pid))
+            remark_in = data.get('remark', '').strip() or '手动入库'
             db.execute("""INSERT INTO inventory_logs (part_id,type,quantity,ref_type,operator,remark)
                 VALUES (?,'in',?,'purchase',?,?)""",
-                (pid, qty, g.current_user['username'] or 'admin', '手动入库'))
+                (pid, qty, g.current_user['username'] or 'admin', remark_in))
         # 更新基本信息
         for field in ['part_name', 'category', 'unit', 'min_quantity', 'remark']:
             if field in data:
