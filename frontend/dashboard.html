@@ -113,9 +113,9 @@
     </div>
 
     <!-- 站点 -->
-    <div class="tab-panel" id="panel-sites"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>站点列表</div><div class="card-body"><div class="filter-bar"><input class="fi" id="st-search" placeholder="搜索名称/编码..." oninput="dldSt()" style="max-width:180px"><select class="fi-s" id="st-flt-type" onchange="ldSt(true)"><option value="">全部类型</option><option value="雨量站">雨量站</option><option value="水位站">水位站</option><option value="水文站">水文站</option><option value="墒情站">墒情站</option><option value="蒸发站">蒸发站</option><option value="地下水站">地下水站</option><option value="站院">站院</option></select><select class="fi-s" id="st-flt-district" onchange="ldSt(true)"><option value="">全部区划</option></select><select class="fi-s" id="st-flt-manager" style="display:none" onchange="ldSt(true)"><option value="">全部负责人</option></select></div><table><thead><tr><th>编码</th><th>名称</th><th>行政区/地址</th><th>类型</th><th>状态</th><th>负责人</th></tr></thead><tbody id="st-body"></tbody></table></div></div></div></div>
+    <div class="tab-panel" id="panel-sites"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>站点列表</div><div class="card-body"><div class="filter-bar"><input class="fi" id="st-search" placeholder="搜索名称/编码..." oninput="dldSt()" style="max-width:180px"><select class="fi-s" id="st-flt-type" onchange="ldSt(true)"><option value="">全部类型</option><option value="雨量站">雨量站</option><option value="水位站">水位站</option><option value="水文站">水文站</option><option value="墒情站">墒情站</option><option value="蒸发站">蒸发站</option><option value="地下水站">地下水站</option><option value="站院">站院</option></select><select class="fi-s" id="st-flt-district" onchange="ldSt(true)"><option value="">全部区划</option></select><select class="fi-s" id="st-flt-manager" style="display:none" onchange="ldSt(true)"><option value="">全部负责人</option></select></div><table><thead><tr><th>编码</th><th>名称</th><th>行政区/地址</th><th>类型</th><th>状态</th><th>负责人</th><th style="width:10%;text-align:center">档案</th></tr></thead><tbody id="st-body"></tbody></table></div></div></div></div>
     <!-- 预警 -->
-    <div class="tab-panel" id="panel-alerts"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>预警管理</div><div class="card-body"><div style="display:flex;gap:8px;padding:4px 0 0;align-items:stretch"><div class="al-metrics" id="al-metrics" style="display:flex;gap:8px;flex:1;flex-wrap:wrap;min-height:60px;align-content:flex-start"></div></div><div class="filter-bar"><input class="fi" placeholder="搜索站点/信息..." oninput="filterTable('al-body',this.value,0);filterTable('al-body',this.value,1)" style="flex:1"><select class="fi-s" id="al-flt-status" onchange="ldAl()"><option value="">全部状态</option><option value="pending">待处理</option><option value="acknowledged">处理中</option><option value="resolved">已办结</option></select><select class="fi-s" id="al-flt-date" onchange="ldAl()"><option value="">全部时间</option><option value="today">今天</option><option value="week">本周</option><option value="month">本月</option></select><div class="batch-bar" id="al-batch" style="display:none;gap:6px"><span style="color:#5ea8c8;font-size:11px" id="al-sel-cnt">已选0项</span><button class="btn btn-success btn-xs" onclick="batchResolve()">批量办结</button><button class="btn btn-warning btn-xs" onclick="batchAl('urge')">批量督办</button><button class="btn btn-primary btn-xs" onclick="batchAl('convert')">批量转工单</button><button class="btn btn-xs" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="clrAlSel()">取消选择</button></div></div><table style="table-layout:fixed"><thead><tr><th style="width:36px"><input type="checkbox" onchange="alSelAll(this.checked)" id="al-cb-all" style="width:16px;height:16px"></th><th style="width:110px">站点</th><th>信息</th><th style="width:130px">状态</th><th style="width:110px;text-align:center">时间</th><th style="width:100px;text-align:center">操作</th></tr></thead><tbody id="al-body"></tbody></table></div></div></div></div>
+    <div class="tab-panel" id="panel-alerts"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>预警管理</div><div class="card-body"><div style="display:flex;gap:8px;padding:4px 0 0;align-items:stretch"><div class="al-metrics" id="al-metrics" style="display:flex;gap:8px;flex:1;flex-wrap:wrap;min-height:60px;align-content:flex-start"></div></div><div class="filter-bar"><input class="fi" placeholder="搜索站点/信息..." oninput="filterTable('al-body',this.value,0);filterTable('al-body',this.value,1)" style="flex:1"><select class="fi-s" id="al-flt-status" onchange="ldAl()"><option value="pending">待处理</option><option value="acknowledged">处理中</option><option value="resolved">已办结</option></select><select class="fi-s" id="al-flt-date" onchange="ldAl()"><option value="">全部时间</option><option value="today">今天</option><option value="week">本周</option><option value="month">本月</option></select><div class="batch-bar" id="al-batch" style="display:none;gap:6px"><span style="color:#5ea8c8;font-size:11px" id="al-sel-cnt">已选0项</span><button class="btn btn-success btn-xs" onclick="batchResolve()">批量办结</button><button class="btn btn-warning btn-xs" onclick="batchAl('urge')">批量督办</button><button class="btn btn-primary btn-xs" onclick="batchAl('convert')">批量转工单</button><button class="btn btn-xs" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="clrAlSel()">取消选择</button></div></div><table style="table-layout:fixed"><thead><tr><th style="width:36px"><input type="checkbox" onchange="alSelAll(this.checked)" id="al-cb-all" style="width:16px;height:16px"></th><th style="width:150px">站点 <span style="font-weight:normal;color:#4a8aaa">级别</span></th><th>信息</th><th style="width:120px">状态</th><th style="width:100px;text-align:center">时间</th><th style="width:100px;text-align:center">操作</th></tr></thead><tbody id="al-body"></tbody></table></div></div></div></div>
     <!-- 工单 -->
     <div class="tab-panel" id="panel-workorders"><div class="mgmt"><div class="card"><div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>工单管理</div><div class="card-body"><div class="filter-bar"><input class="fi" placeholder="搜索工单号/标题..." oninput="filterTable('or-body',this.value,0);filterTable('or-body',this.value,4)" style="flex:1"><select class="fi-s" onchange="filterEq('or-body',3,this.value)"><option value="">全部级别</option><option value="一般">一般</option><option value="紧急">紧急</option><option value="重大">重大</option></select><select class="fi-s" onchange="filterEq('or-body',5,this.value)"><option value="">全部状态</option><option value="待受理">待受理</option><option value="已受理">已受理</option><option value="已生成">已生成</option><option value="处置中">处置中</option><option value="已关闭">已关闭</option></select><button class="btn btn-primary btn-sm" onclick="mNew('order')" style="margin-left:auto">+新建</button></div><table><thead><tr><th onclick="sortTable('or-body',0)">工单号 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('or-body',1)">站点 <span class="srt">&#9650;&#9660;</span></th><th>来源</th><th onclick="sortTable('or-body',3)">级别 <span class="srt">&#9650;&#9660;</span></th><th>标题</th><th onclick="sortTable('or-body',5)">状态 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('or-body',6)">负责人 <span class="srt">&#9650;&#9660;</span></th><th onclick="sortTable('or-body',7)">SLA <span class="srt">&#9650;&#9660;</span></th><th>操作</th></tr></thead><tbody id="or-body"></tbody></table></div></div></div></div>
     <!-- 巡检计划（真实巡检 inspection_plans） -->
@@ -222,30 +222,45 @@
       </div></div>
     </div>
     <!-- 统计分析 -->
-    <div class="tab-panel" id="panel-analysis">
+        <div class="tab-panel" id="panel-analysis">
       <div class="mgmt"><div class="card">
         <div class="card-hd"><span class="arr">&#187;&#187;&#187;</span>运维统计分析 · 考核对标</div>
         <div class="card-body" id="analysis-body">
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-            <div class="tj-ka" id="ana-rate"><div class="tj-zhi" style="color:#2ea080">--</div><div class="tj-biao">日数据畅通率</div><div class="tj-shuo">指标 ≧98%</div></div>
-            <div class="tj-ka" id="ana-sla"><div class="tj-zhi" style="color:#ffa040">--</div><div class="tj-biao">故障处置SLA达标</div><div class="tj-shuo">目标 ≧95%</div></div>
-            <div class="tj-ka" id="ana-patrol"><div class="tj-zhi" style="color:#00e0c0">--</div><div class="tj-biao">巡检完成率</div><div class="tj-shuo">目标 100%</div></div>
+          <!-- 统计周期切换 -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div class="ana-toggle" style="display:flex;background:rgba(0,20,30,0.4);border-radius:5px;overflow:hidden;flex-shrink:0">
+              <span class="tab-btn active" id="ana-cycle-day" onclick="switchAnaCycle('day',this)" style="font-size:11px;padding:4px 10px">日</span>
+              <span class="tab-btn" id="ana-cycle-week" onclick="switchAnaCycle('week',this)" style="font-size:11px;padding:4px 10px">周</span>
+              <span class="tab-btn" id="ana-cycle-month" onclick="switchAnaCycle('month',this)" style="font-size:11px;padding:4px 10px">月</span>
+            </div>
+            <span style="font-size:12px;color:#4a8aaa">统计周期：<b style="color:#5ea8c8" id="ana-cycle-label">近7日</b></span>
+          </div>
+          <!-- 指标卡（5列） -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px">
+            <div class="tj-ka" id="ana-rate"><div class="tj-zhi" style="color:#2ea080">--</div><div class="tj-biao">数据畅通率</div><div class="tj-shuo">指标≥98%</div></div>
+            <div class="tj-ka" id="ana-sla"><div class="tj-zhi" style="color:#ffa040">--</div><div class="tj-biao">SLA处置达标</div><div class="tj-shuo">目标≥95%</div></div>
+            <div class="tj-ka" id="ana-patrol"><div class="tj-zhi" style="color:#00e0c0">--</div><div class="tj-biao">巡检完成率</div><div class="tj-shuo">目标100%</div></div>
+            <div class="tj-ka" id="ana-device"><div class="tj-zhi" style="color:#ffa040">--</div><div class="tj-biao">设备故障率</div><div class="tj-shuo">按站型统计</div></div>
             <div class="tj-ka" id="ana-score"><div class="tj-zhi" style="color:#b0d4ef">--</div><div class="tj-biao">考核预估得分</div><div class="tj-shuo">百分制</div></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:12px;height:200px;display:flex;flex-direction:column"><div style="font-size:13px;color:#5ea8c8;margin-bottom:6px;flex-shrink:0">&#x25B8; 畅通率趋势（近7日）</div><div style="flex:1;min-height:0;position:relative"><canvas id="chart-rate-xs" style="width:100%;height:100%;position:absolute"></canvas></div></div>
-            <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:12px;height:200px;display:flex;flex-direction:column"><div style="font-size:13px;color:#5ea8c8;margin-bottom:6px;flex-shrink:0">&#x25B8; 故障处置时效分布</div><div style="flex:1;min-height:0;position:relative"><canvas id="chart-sla-fx" style="width:100%;height:100%;position:absolute"></canvas></div></div>
+          <!-- 图表行：畅通率趋势 + 设备故障频次 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:10px;height:190px;display:flex;flex-direction:column"><div style="font-size:12px;color:#5ea8c8;margin-bottom:4px;flex-shrink:0">&#x25B8; 畅通率趋势</div><div style="flex:1;min-height:0;position:relative"><canvas id="chart-rate-xs" style="width:100%;height:100%;position:absolute"></canvas></div></div>
+            <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:10px;height:190px;display:flex;flex-direction:column"><div style="font-size:12px;color:#5ea8c8;margin-bottom:4px;flex-shrink:0">&#x25B8; 设备故障频次（按站型）</div><div style="flex:1;min-height:0;position:relative"><canvas id="chart-dev-xs" style="width:100%;height:100%;position:absolute"></canvas></div></div>
           </div>
-          <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:12px"><div style="font-size:13px;color:#5ea8c8;margin-bottom:8px">&#x25B8; 考核指标对标</div>
+          <!-- 图表行：故障时效分布 + 巡检完成 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+            <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:10px;height:150px;display:flex;flex-direction:column"><div style="font-size:12px;color:#5ea8c8;margin-bottom:4px;flex-shrink:0">&#x25B8; 故障处置时效分布</div><div style="flex:1;min-height:0;position:relative"><canvas id="chart-sla-fx" style="width:100%;height:100%;position:absolute"></canvas></div></div>
+            <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:10px;height:150px;display:flex;flex-direction:column"><div style="font-size:12px;color:#5ea8c8;margin-bottom:4px;flex-shrink:0">&#x25B8; 巡检完成情况</div><div style="flex:1;min-height:0;position:relative"><canvas id="chart-insp-xs" style="width:100%;height:100%;position:absolute"></canvas></div></div>
+          </div>
+          <!-- 考核对标表 -->
+          <div style="background:rgba(0,20,30,0.3);border-radius:8px;padding:12px"><div style="font-size:13px;color:#5ea8c8;margin-bottom:8px">&#x25B8; 考核指标对标（百分制）</div>
             <table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;color:#5ea8c8;padding-bottom:4px">考核项</th><th style="text-align:center;color:#5ea8c8">满分</th><th style="text-align:center;color:#5ea8c8">当前值</th><th style="text-align:center;color:#5ea8c8">预估得分</th><th style="text-align:left;color:#5ea8c8">状态</th></tr></thead>
             <tbody id="tj-kaohe-body"></tbody></table>
           </div>
         </div>
       </div></div>
     </div>
-    </div>
-    </div>
-</div>
 
 <script src="/shared/constants.js"></script>
 <script src="/shared/utils.js"></script>
@@ -267,6 +282,17 @@ function _authHdrs(){const h={};if(_token)h['Authorization']='Bearer '+_token;re
 async function af(u,to=30000){try{const c=new AbortController();setTimeout(()=>c.abort(),to);const r=await fetch(API+u,{signal:c.signal,headers:_authHdrs()});if(r.status===401){_token='';localStorage.removeItem('water_ops_token');showLogin();return null}return await r.json()}catch(e){return null}}
 async function afP(u,d){try{const c=new AbortController();setTimeout(()=>c.abort(),30000);const r=await fetch(API+u,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(d),signal:c.signal});if(r.status===401){_token='';localStorage.removeItem('water_ops_token');showLogin();return null}return await r.json()}catch(e){return null}}
 async function afPt(u,d){try{const c=new AbortController();setTimeout(()=>c.abort(),30000);const r=await fetch(API+u,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(d),signal:c.signal});if(r.status===401){_token='';localStorage.removeItem('water_ops_token');showLogin();return null}return await r.json()}catch(e){return null}}
+// 全局缓存
+var _summaryData = null;
+
+// 统一的dashboard数据源——所有面板都调用此函数
+async function refreshDashboard(){
+  try{
+    var d=await af('/dashboard/summary');
+    if(d) _summaryData=d;
+    return d;
+  }catch(e){return _summaryData}
+}
 
 // ===== SVG Icons =====
 const ICONS={
@@ -586,14 +612,20 @@ function renderLegend(){
   var el=document.getElementById('legend-body');if(el)el.innerHTML=html;
 }
 async function _loadAllMarkers(filterType){
+  await refreshDashboard();
   const allSites=await af('/sites');if(!allSites)return[];
   // 获取活跃告警列表用于标记和弹窗
-  const alerts=await af('/alerts?limit=200');
+  const alerts=await af('/alerts?limit=500');
   const siteAlerts={};(alerts||[]).filter(a=>a.status==='pending').forEach(a=>{if(!siteAlerts[a.site_id])siteAlerts[a.site_id]=[];siteAlerts[a.site_id].push(a)});
   const filtered=filterType?allSites.filter(s=>s.type===filterType):allSites;
   var _markers=filtered.map(s=>{
-    const c=CLR[s.type]||'#FF0000';const svg=shpSvg[s.type]||shpSvg.rainfall;
+    const svg=shpSvg[s.type]||shpSvg.rainfall;
     const sa=siteAlerts[s.id]||[];const hasAlert=sa.length>0;
+    // 运行状态分色: 有告警=橙色/红色, 设备离线=红色, 正常=绿色
+    var statClr='#2ea080'; // 默认绿色(正常)
+    if(s.status==='offline')statClr='#ff4760'; // 红色(离线)
+    else if(hasAlert)statClr='#ffa040'; // 橙色(数据异常)
+    const c=statClr;
     // 确定最高告警级别
     var alertLevel=null;
     sa.forEach(function(a){
@@ -652,8 +684,8 @@ async function _loadAllMarkers(filterType){
         if(latestRec&&latestRec.recorded_at){
           var recT=new Date(latestRec.recorded_at.replace(' ','T'));
           var minsAgo=Math.round((Date.now()-recT.getTime())/60000);
-          if(minsAgo>120)delayWarn='<span style="color:#ff4760"><span class="i i-sm" style="margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>数据延迟 '+Math.floor(minsAgo/60)+'h</span>';
-          else if(minsAgo>60)delayWarn='<span style="color:#ffa040"><span class="i i-sm" style="margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>延迟 '+minsAgo+'min</span>';
+          if(minsAgo>360)delayWarn='<span style="color:#ff4760"><span class="i i-sm" style="margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>数据延迟 '+Math.floor(minsAgo/60)+'h</span>';
+          else if(minsAgo>120)delayWarn='<span style="color:#ffa040"><span class="i i-sm" style="margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>延迟 '+minsAgo+'min</span>';
         }
       }
       // 最新数据时间
@@ -661,14 +693,14 @@ async function _loadAllMarkers(filterType){
       var latestTm=latestTime?latestTime.substring(0,16):'';
       // 今日到报状态
       var arrivalStatus='';
-      var todayDate=new Date().toISOString().substring(0,10);
-      var hasTodayData=false;
+      var sixHoursAgo=new Date(Date.now()-6*3600000).toISOString();
+      var hasRecentData=false;
       if(sd&&sd.length>0){
-        for(var si2=0;si2<sd.length&&!hasTodayData;si2++){
-          if(sd[si2].recorded_at&&sd[si2].recorded_at.indexOf(todayDate)===0)hasTodayData=true;
+        for(var si2=0;si2<sd.length&&!hasRecentData;si2++){
+          if(sd[si2].recorded_at&&sd[si2].recorded_at>=sixHoursAgo)hasRecentData=true;
         }
       }
-      arrivalStatus=hasTodayData?'<span style="color:#00e0c0">今日已到报</span>':'<span style="color:#ffa040">今日未到报</span>';
+      arrivalStatus=hasRecentData?'<span style="color:#00e0c0">数据正常</span>':'<span style="color:#ffa040">数据延迟</span>';
       // 组装状态栏
       var statusBar=[];
       if(uptime)statusBar.push(uptime);
@@ -676,8 +708,24 @@ async function _loadAllMarkers(filterType){
       if(delayWarn)statusBar.push(delayWarn);
       if(latestTm)statusBar.push('<span style="color:#5ea8c8">数据</span> <span style="color:'+(delayWarn?'#ff4760':'#b0d4ef')+'">'+latestTm+'</span>');
       
-      const chartHtml=sd&&sd.length?renderSiteChart(sd,s.type):'<div style="padding:6px 0;color:#4a8aaa;font-size:12px">暂无实时数据</div>';
-      const activeAlerts=d?d.active_alerts||[]:[];
+      // const chartHtml=sd&&sd.length?renderSiteChart(sd,s.type):'<div style="padding:6px 0;color:#4a8aaa;font-size:12px">暂无实时数据</div>';
+      const chartHtml=''; // 图表已移除，请查看数据趋势页面
+      var recentDataHtml='';
+      if(sd&&sd.length>0){
+        var sdList=sd.slice(0,5);
+        recentDataHtml='<div style="margin:6px 0 4px;padding:4px 0;border-top:1px solid rgba(0,200,180,0.08);border-bottom:1px solid rgba(0,200,180,0.08)">';
+        recentDataHtml+='<div style="font-size:11px;color:#5ea8c8;margin-bottom:4px">&#x25B8; 最新数据</div>';
+        sdList.forEach(function(r){
+          var m=window['MT']?MT[r.metric]:r.metric;
+          recentDataHtml+='<div style="display:flex;font-size:11px;padding:1px 0"><span style="color:#b0d4ef;flex:1">'+(m||r.metric)+'</span><span style="color:#00e0c0">'+(typeof r.value==='number'?r.value.toFixed(2):r.value)+'</span><span style="color:#4a8aaa;margin-left:4px">'+r.unit+'</span><span style="color:#4a8aaa;margin-left:8px">'+(r.recorded_at||'').substring(11,16)+'</span></div>';
+        });
+        recentDataHtml+='</div>';
+      }
+      // 优先使用 /alerts 中已缓存的 sa（已在函数作用域内）
+      // 以 sa 为主，/site/status 返回的 active_alerts 做补充
+      const apiAlerts=d?((d.active_alerts||d.alerts||d.pending_alerts)||[])||[]:[];
+      const combinedAlerts=sa.length>0?sa:apiAlerts;
+      const activeAlerts=combinedAlerts;
       // 设备详情列表
       var devHtml='';
       if(dv.length>0){
@@ -695,13 +743,15 @@ async function _loadAllMarkers(filterType){
       }
       var tags=[];var tagCls={'设备在线':'green','在线':'green','今日已到报':'green','已运行':'green','延迟':'orange','数据延迟':'orange','正常':'green','未到报':'orange','待处理':'orange'};
       statusBar.forEach(function(x){var k=Object.keys(tagCls).find(function(t){return x.indexOf(t)>-1});tags.push('<span class="sp-tag '+(tagCls[k||'gray']||'gray')+'">'+x+'</span>')});
+      if(hasAlert) tags.push('<span class="sp-tag orange">⚠ 告警 '+sa.length+'</span>');
       // 告警（无级别标签）
       const alertHtml=activeAlerts.length?activeAlerts.slice(0,5).map(x=>'<div class="sp-alert" onclick="this.closest(\'.leaflet-popup-close-button\')&&document.querySelector(\'.leaflet-popup-close-button\')&&document.querySelector(\'.leaflet-popup-close-button\').click();showAlertDetail('+x.id+')"><span style="flex:1;color:#b0d4ef">'+x.message+'</span><span style="color:#5ea8c8;font-size:10px">'+(x.created_at||'').substring(11,16)+'</span></div>').join(''):'<div style="color:#4a8aaa;font-size:12px;padding:4px 0">暂无未办结告警</div>';
-      m.bindPopup(`<div class="site-popup"><h4>${s.name} <span style="font-size:11px;color:#5ea8c8">${s.code}</span>${healthBadge}</h4><div class="row"><span class="rl">类型</span><span class="rv">${TM[s.type]||s.type}</span><span style="flex:1"></span><span class="rl">区县</span><span class="rv">${s.district||'-'}</span></div><div style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 2px">${tags.join('')}${wlStatusHtml}</div>${todayExtremes?('<div style="font-size:12px;color:#5ea8c8;margin-bottom:2px">'+todayExtremes+'</div>'):''}<div style="margin:6px 0 4px;padding:4px 0;border-top:1px solid rgba(0,200,180,0.08);border-bottom:1px solid rgba(0,200,180,0.08)">${chartHtml}</div>${activeAlerts.length?('<div class="sp-section" style="font-size:12px;color:#ffa040;padding-bottom:3px">&#9888; 告警 ('+activeAlerts.length+')</div>'+alertHtml):''}${dv.length?('<div class="sp-section" style="font-size:12px;color:#5ea8c8;padding-bottom:3px">&#9881; 设备 ('+dv.length+')</div>'+devHtml):''}<div style="margin-top:6px;text-align:center"><a style="color:#00e0c0;font-size:12px;cursor:pointer" onclick="this.closest(\'.leaflet-popup-close-button\')&&document.querySelector(\'.leaflet-popup-close-button\')&&document.querySelector(\'.leaflet-popup-close-button\').click();showSiteTrend(${s.id})">查看数据趋势 ›</a></div></div>`,{maxWidth:480,className:'site-popup-wrap'}).openPopup()
+      m.bindPopup(`<div class="site-popup"><h4>${s.name} <span style="font-size:11px;color:#5ea8c8">${s.code}</span>${healthBadge}</h4><div class="row"><span class="rl">类型</span><span class="rv">${TM[s.type]||s.type}</span><span style="flex:1"></span><span class="rl">区县</span><span class="rv">${s.district||'-'}</span></div><div style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 2px">${tags.join('')}${wlStatusHtml}</div>${todayExtremes?('<div style="font-size:12px;color:#5ea8c8;margin-bottom:2px">'+todayExtremes+'</div>'):''}${recentDataHtml}${activeAlerts.length>0?('<div class="sp-section" style="font-size:12px;color:#ffa040;padding-bottom:3px">&#9888; 告警 ('+activeAlerts.length+')</div>'+alertHtml):(hasAlert?'<div class="sp-section" style="font-size:12px;color:#ff4760;padding:4px 0">&#9888; 该站点有待处理告警</div>':'')}${dv.length?('<div class="sp-section" style="font-size:12px;color:#5ea8c8;padding-bottom:3px">&#9881; 设备 ('+dv.length+')</div>'+devHtml):''}<div style="margin-top:6px;text-align:center"><a style="color:#00e0c0;font-size:12px;cursor:pointer" onclick="this.closest(\'.leaflet-popup-close-button\')&&document.querySelector(\'.leaflet-popup-close-button\')&&document.querySelector(\'.leaflet-popup-close-button\').click();showSiteTrend(${s.id})">查看数据趋势 ›</a></div></div>`,{maxWidth:480,className:'site-popup-wrap'}).openPopup()
     });
     return m;
   });
   window.__allMapMarkers=_markers;
+  _updateBreatheFromApi();
   return _markers;
 }
 
@@ -999,8 +1049,10 @@ function _togglePinSite(siteId,e){
 let _cachedOverview=null;
 let _versionTimer=null;
 async function cockpitLoad(){
-  const ov=await af('/data/overview');
-  if(ov){document.getElementById('ns-sites').textContent=ov.online_sites;document.getElementById('ns-orders').textContent=ov.open_orders}
+  await refreshDashboard();
+  // [fix] 不再使用/data/overview独立API，统一由_summaryData覆盖
+  // const ov=await af('/data/overview');
+  // if(ov){document.getElementById('ns-sites').textContent=ov.online_sites;document.getElementById('ns-orders').textContent=ov.open_orders}
   const s=await af('/data/realtime');
   const ds=await af('/devices/status');
   if(!s)console.warn('[Cockpit] /data/realtime返回null');
@@ -1038,8 +1090,9 @@ async function cockpitLoad(){
   }
   // ===== 实时预警（按时间排序，无级别分类） =====
   const p=(alData||[]).sort(function(a,b){return((a.created_at||'')<(b.created_at||'')?1:-1)});
-  _updateBreathe(p);
-  document.getElementById('ns-alerts').textContent=p.length;document.getElementById('ns-alerts').className=p.length?'nsn danger':'nsn';
+  _updateBreatheFromApi();
+  // 注释：ns-alerts由下方summary统一覆盖，避免被p.length覆盖
+  // document.getElementById('ns-alerts').textContent=p.length;document.getElementById('ns-alerts').className=p.length?'nsn danger':'nsn';
   document.getElementById('alert-badge').textContent=p.length?p.length+'条':'';
   document.getElementById('alert-feed').innerHTML=p.length?p.slice(0,10).map(function(x){
     return '<div class="alert-item" style="cursor:pointer;padding:4px 0;border-bottom:1px solid rgba(0,200,180,0.04)" onclick="showAlertDetail('+x.id+')"><span class="alert-msg"><strong style="color:#b0d4ef;font-weight:500">'+x.site_name+'</strong><span style="color:#5ea8c8"> '+esc(x.message)+'</span></span><span class="alert-tm">'+(x.created_at||'').substring(11,16)+'</span></div>'
@@ -1070,6 +1123,17 @@ async function cockpitLoad(){
           return '<div style="display:flex;align-items:center;gap:10px;margin:5px 0;cursor:pointer" onclick="switchNav(\'workorders\')"><span style="width:48px;color:#b0d4ef;text-align:right;font-size:12px">'+cn[i]+'</span><div style="flex:1;height:16px;background:rgba(0,200,180,0.06);border-radius:8px;overflow:hidden"><div style="height:100%;width:'+(v/maxV*100)+'%;background:'+cls[i]+';border-radius:8px;transition:width .5s"></div></div><span style="width:24px;color:#d0e8ff;font-family:monospace;font-size:13px">'+v+'</span></div>'
         }).join('')
     }
+  }
+  // 用统一summary数据覆盖驾驶舱统计指标（始终执行）
+  if(_summaryData&&_summaryData.sites){
+    document.getElementById('ns-sites').textContent=_summaryData.sites.online;
+  }
+  if(_summaryData&&_summaryData.alerts){
+    document.getElementById('ns-alerts').textContent=_summaryData.alerts.pending;
+    document.getElementById('ns-alerts').className=_summaryData.alerts.pending?'nsn danger':'nsn';
+  }
+  if(_summaryData&&_summaryData.workorders){
+    document.getElementById('ns-orders').textContent=_summaryData.workorders.by_status.in_progress;
   }
   document.getElementById('bt-time').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});
 }
@@ -1156,7 +1220,7 @@ function _renderDeviceHealth(ds){
   // 从离线设备中统计低电压
   (ds.offline_devices||[]).forEach(function(d){
     if(d.voltage&&d.voltage<11.8)lowVolt++;
-    else offlineDev++;
+    // offlineDev already counted from by_type above
   });
   document.getElementById('dh-device-count').textContent=totalDev+'台设备';
   // 核心指标卡片
@@ -1190,6 +1254,18 @@ function _renderDeviceHealth(ds){
 }
 // ===== 增强: 预警趋势 =====
 async function _loadAlertTrend(){
+  // 优先使用总结数据
+  await refreshDashboard();
+  if(_summaryData&&_summaryData.alerts){
+    var todayCnt=_summaryData.alerts.today_new||0;
+    var totalAl=_summaryData.alerts.total||0;
+    var trendEl=document.getElementById('alert-trend');
+    if(trendEl){
+      trendEl.textContent='今日+'+todayCnt+' ↑'+Math.round(todayCnt/Math.max(1,totalAl-todayCnt)*100)||'0';
+    }
+    return;
+  }
+  // 降级：原有逻辑
   const now=new Date();
   var today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
   var yesterday=new Date(now);yesterday.setDate(yesterday.getDate()-1);
@@ -1295,6 +1371,43 @@ function _updateBreathe(pendingAlerts){
     if(m._sd)m._alertLevel=lv||null;
   });
 }
+// 新增：直接从API获取pending告警并更新GIS闪烁
+async function _updateBreatheFromApi(){
+  try{
+    var pendingAlerts=await af('/alerts?status=pending&limit=500');
+    if(!pendingAlerts||!pendingAlerts.length)return;
+    // 构建站点-告警级别映射
+    var siteLevel={};
+    pendingAlerts.forEach(function(a){
+      if(!a.site_id)return;
+      var lv=a.level||'yellow';
+      // 保留最高级别
+      if(!siteLevel[a.site_id]){
+        siteLevel[a.site_id]=lv;
+      }else{
+        var order={red:3,orange:2,yellow:1};
+        if((order[lv]||0)>(order[siteLevel[a.site_id]]||0)){
+          siteLevel[a.site_id]=lv;
+        }
+      }
+    });
+    // 更新标记
+    if(!window.__allMapMarkers||!window.__allMapMarkers.length)return;
+    window.__allMapMarkers.forEach(function(m){
+      var el=m.getElement();if(!el)return;
+      var ico=el.querySelector('.marker-breathe');if(!ico)return;
+      var sid=m._sd&&m._sd.id;
+      var lv=siteLevel[sid];
+      // 更新类名和颜色
+      ico.className='marker-breathe'+(lv?' '+lv:'');
+      var color=lv?'#ffa040':'#2ea080';
+      var svg=ico.querySelector('svg');
+      if(svg)svg.style.color=color;
+      // 同步 _alertLevel 以便后续聚合重建时使用
+      if(m._sd)m._alertLevel=lv||null;
+    });
+  }catch(e){/* silent */}
+}
 // 数据到报率详情弹窗
 function _showArrivalDetail(){
   const ov=document.createElement('div');ov.className='modal-overlay';
@@ -1377,7 +1490,7 @@ function _renderStPage(){
   document.getElementById('st-body').innerHTML=pageData.map(s=>{
     const off=s.offline_count||0;const isAb=off>0||s.status==='offline';
     const st=isAb?'badge-org':'badge-grn';const stT=isAb?(off?off+'台离线':'离线'):'正常';
-    return `<tr style="cursor:pointer" onclick="showSite(${s.id})"><td style="white-space:nowrap;width:10%">${esc(s.code)}</td><td style="width:20%">${esc(s.name)}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:18%" title="${esc(s.district||s.address||'')}">${esc(s.district||s.address||'-')}</td><td style="width:10%">${esc(TM[s.type]||s.type)}</td><td style="width:10%"><span class="badge ${st}">${stT}</span></td><td style="width:12%">${esc(s.manager||'-')}</td><td style="width:10%;text-align:center"><span class="st-archive-link" onclick="event.stopPropagation();_showSiteArchive(${s.id})" style="color:#00e0c0;font-size:11px;cursor:pointer;border:1px solid rgba(0,224,192,0.2);padding:2px 6px;border-radius:3px">&#128203; 档案</span></td></tr>`
+    return `<tr style="cursor:pointer" onclick="showSite(${s.id})"><td style="white-space:nowrap;width:10%">${esc(s.code)}</td><td style="width:20%">${esc(s.name)}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:18%" title="${esc(s.district||s.address||'')}">${esc(s.district||s.address||'-')}</td><td style="width:10%">${esc(TM[s.type]||s.type)}</td><td style="width:10%"><span class="badge ${st}">${stT}</span></td><td style="width:12%">${esc(s.manager||'-')}</td><td style="width:10%;text-align:center"><span class="st-archive-link" onclick="event.stopPropagation();_showSiteArchive(${s.id})" style="color:#00e0c0;font-size:13px;cursor:pointer;border:1px solid rgba(0,224,192,0.2);padding:2px 8px;border-radius:3px">档案</span></td></tr>`
   }).join('');
   // 分页导航
   const total=_ldSt_fullData.length;
@@ -1456,10 +1569,19 @@ async function showSiteTrend(id){
         <button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="this.closest(\'.modal-overlay\').remove();_trendChart=null">关闭</button>
       </div>
     </div>
-    <div style="flex:1;min-height:0;position:relative;margin-top:8px">
+    <div style="flex:1;min-height:200px;position:relative;margin-top:8px">
       <div id="tr-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,20,30,0.6);z-index:5"><div class="sp"></div><span style="margin-left:10px;color:#5ea8c8;font-size:13px">加载趋势数据...</span></div>
       <canvas id="chart-trend" style="width:100%;height:100%"></canvas>
       <div id="tr-error" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#5ea8c8;font-size:13px">暂无数据</div>
+    </div>
+    <div style="height:200px;flex-shrink:0;margin-top:6px;border-top:1px solid rgba(0,200,180,0.08);display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">
+        <span style="font-size:12px;color:#5ea8c8">&#x25B8; 数据列表</span>
+        <span style="font-size:11px;color:#4a8aaa" id="tr-list-count"></span>
+      </div>
+      <div style="flex:1;overflow-y:auto;font-size:11px" id="tr-data-list">
+        <div style="color:#4a8aaa;padding:20px;text-align:center">请先加载趋势数据</div>
+      </div>
     </div>
     <div style="display:flex;gap:12px;font-size:11px;color:#5ea8c8;flex-shrink:0;padding-top:6px;border-top:1px solid rgba(0,200,180,0.08)" id="tr-stats"></div>
   </div>`;
@@ -1506,6 +1628,8 @@ async function loadTrendData(){
     }
     // 渲染图表
     renderTrendChart(seriesData);
+    // 渲染数据列表
+    renderTrendDataList(seriesData, hours);
     // 统计信息
     var total=0;
     metricKeys.forEach(function(m){total+=seriesData[m].length});
@@ -1560,6 +1684,45 @@ function renderTrendChart(d){
     }
   })
 }
+// 渲染趋势数据列表
+function renderTrendDataList(seriesData, hours){
+  var listEl=document.getElementById('tr-data-list');
+  var countEl=document.getElementById('tr-list-count');
+  if(!listEl)return;
+  var allRows=[];
+  Object.keys(seriesData).forEach(function(metric){
+    var pts=seriesData[metric];
+    if(!pts||!pts.length)return;
+    var cn=MT_CN[metric]||metric;
+    pts.forEach(function(pt){
+      var t=pt.x||pt.t||pt.recorded_at||'';
+      // Chart.js数据格式: x=timestamp(ms), y=value
+      var timeStr='';
+      if(typeof t==='number'){
+        var d=new Date(t);
+        timeStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      }else{
+        timeStr=(t||'').substring(0,16);
+      }
+      allRows.push({metric:cn, value:pt.y||pt.value||pt, time:timeStr})
+    })
+  });
+  // 按时间排序（最新的在前）
+  allRows.sort(function(a,b){return a.time>b.time?-1:1});
+  if(countEl)countEl.textContent='共 '+allRows.length+' 条数据';
+  if(!allRows.length){
+    listEl.innerHTML='<div style="color:#4a8aaa;padding:20px;text-align:center">暂无数据</div>';
+    return
+  }
+  var html='<table style="width:100%;font-size:11px"><thead><tr style="position:sticky;top:0;background:rgba(4,18,52,0.98)"><th style="color:#5ea8c8;text-align:left;padding:4px 6px">指标</th><th style="color:#5ea8c8;text-align:right;padding:4px 6px">数值</th><th style="color:#5ea8c8;text-align:right;padding:4px 6px">采集时间</th></tr></thead><tbody>';
+  allRows.forEach(function(r){
+    var val=typeof r.value==='number'?r.value.toFixed(2):r.value;
+    html+='<tr style="border-top:1px solid rgba(0,200,180,0.04)"><td style="color:#b0d4ef;padding:3px 6px;white-space:nowrap">'+esc(r.metric)+'</td><td style="color:#00e0c0;text-align:right;padding:3px 6px;font-family:monospace">'+val+'</td><td style="color:#4a8aaa;text-align:right;padding:3px 6px;white-space:nowrap;font-size:10px">'+esc(r.time)+'</td></tr>'
+  });
+  html+='</tbody></table>';
+  listEl.innerHTML=html;
+}
+// CSV导出
 function exportTrendCsv(){
   const chart=_trendChart;if(!chart){showToast('无趋势数据可导出','warning');return}
   const ds=chart.data.datasets;if(!ds||!ds.length)return;
@@ -1590,7 +1753,10 @@ async function qckOrder(siteId,devName){
 }
 
 async function ldAl(){
-  const status=document.getElementById('al-flt-status').value;
+  // 设置默认状态筛选为待处理
+  var statusEl=document.getElementById('al-flt-status');
+  if(statusEl&&!statusEl.value) statusEl.value='pending';
+  const status=statusEl?statusEl.value:'';
   const dateRange=document.getElementById('al-flt-date').value;
   const now=new Date();
   let date_from='',date_to='';
@@ -1651,7 +1817,7 @@ window['_renderTable_al-body']=function(rows){
       actionHtml=`<a href="javascript:showOrderDetail('${esc(ono)}')" style="color:#4af;font-size:13px">查看工单 ›</a>`;
     }else if(ft==='auto'&&fs==='pending'){
       // ③ A级自动待转单 → 可人工提前介入处理
-      actionHtml=`<button class="btn btn-sm" style="color:#c8a040;border:1px solid rgba(200,160,64,0.3);padding:2px 10px;font-size:13px" onclick="alConfirmConvert(${a.id})">处理</button>`;
+      actionHtml=`<button class="btn btn-sm" style="color:#c8a040;border:1px solid rgba(200,160,64,0.3);padding:2px 10px;font-size:13px" onclick="doConvert(${a.id})">转工单</button>`;
     }else if(isPending&&fs!=='pending_review'){
       // ④ 待处理的已确认告警 → 时间线
       actionHtml=`<button class="btn btn-sm" style="color:#5ea8c8;border:1px solid rgba(90,168,200,0.3);padding:2px 10px;font-size:13px" onclick="showAlertTimeline(${a.id})">时间线</button>`;
@@ -1661,7 +1827,7 @@ window['_renderTable_al-body']=function(rows){
     // 督办角标
     var urgeBadge=a.urge_count?`<span style="color:#ffa040;font-size:11px;margin-left:6px">🔔${a.urge_count}</span>`:'';
     return `<tr data-id="${a.id}"><td style="width:36px;text-align:center"><input type="checkbox" class="al-cb" value="${a.id}" onchange="alUpdCnt()" style="width:16px;height:16px"></td>
-      <td style="width:110px;font-size:13px">${esc(a.site_name)}</td>
+      <td style="width:110px;font-size:13px">${(function(){var lv=a.level||'';var lvClr={'red':'#ff4760','orange':'#ffa040','yellow':'#ffd000'}[lv]||'#5ea8c8';var lvCn={'red':'紧急','orange':'较重','yellow':'一般'}[lv]||lv;return '<span style="display:inline-block;width:4px;height:12px;border-radius:2px;background:'+lvClr+';margin-right:4px;vertical-align:middle"></span><span style="vertical-align:middle">'+esc(a.site_name)+'</span><span style="font-size:10px;color:#4a8aaa;margin-left:4px">'+lvCn+'</span>'})()}</td>
       <td style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.message)}</td>
       <td style="width:130px;font-size:13px"><span style="display:inline-flex;align-items:center;border-radius:4px;padding:2px 8px;font-weight:500;${badgeStyle}">${badgeText}</span>${urgeBadge}</td>
       <td style="width:110px;font-size:13px;color:#5ea8c8;font-family:monospace;text-align:center">${a.created_at?esc(a.created_at.substring(5,16)):''}</td>
@@ -1673,12 +1839,13 @@ window['_renderTable_al-body']=function(rows){
 async function renderAlertMetrics(){
   const el=document.getElementById('al-metrics');if(!el)return;
   try{
+    await refreshDashboard();
     // 从全量数据计算月办结率（不随筛选变化）
     var monthResolved=0,monthTotal=0,monthRate='--';
     var monthStart=new Date();monthStart.setDate(1);
     var ms=monthStart.toISOString().substring(0,10);
     try{
-      var allAl=await af('/alerts?limit=500');
+      var allAl=_summaryData&&_summaryData.alerts?null:await af('/alerts?limit=500');
       if(allAl&&allAl.length){
         for(var ai=0;ai<allAl.length;ai++){
           var dt=allAl[ai].created_at?allAl[ai].created_at.substring(0,10):'';
@@ -1688,16 +1855,33 @@ async function renderAlertMetrics(){
           }
         }
         monthRate=monthTotal?Math.round(monthResolved/monthTotal*100):0;
+      }else if(_summaryData&&_summaryData.alerts){
+        monthRate='--';
       }
     }catch(e){}
-    // 当前筛选列表统计——从分页全量数据取，不依赖DOM（避免分页导致计数不准）
-    var alFullData = (_pgState&&_pgState['al-body']&&_pgState['al-body'].data) || [];
+    // 从全量告警数据计算统计，不依赖分页
+    var alFullData = [];
+    try{
+      if(allAl && allAl.length) alFullData = allAl;
+      // 如果allAl不可用（异常），兜底用分页数据
+      if(!alFullData.length && _pgState && _pgState['al-body'] && _pgState['al-body'].data) 
+        alFullData = _pgState['al-body'].data;
+    }catch(e){}
     var total=alFullData.length, pending=0, today=0;
+    var acknowledged=allAl?allAl.filter(function(r){return r.status==='acknowledged'}).length:0;
+    var resolved=allAl?allAl.filter(function(r){return r.status==='resolved'}).length:0;
     var todayStr=new Date().toISOString().substring(0,10);
     for(var ai2=0;ai2<alFullData.length;ai2++){
       var r=alFullData[ai2];
       if(r.status==='pending')pending++;
       if(r.created_at&&r.created_at.substring(0,10)===todayStr)today++;
+    }
+    // 用summary数据覆盖统计值
+    if(_summaryData&&_summaryData.alerts){
+      pending=_summaryData.alerts.pending;
+      acknowledged=_summaryData.alerts.acknowledged;
+      resolved=_summaryData.alerts.resolved;
+      today=_summaryData.alerts.today_new;
     }
     // 获取待复核统计 + 自动转工单数
     var pendingReview = 0, autoConverted = 0;
@@ -1706,10 +1890,27 @@ async function renderAlertMetrics(){
       if(stData && stData.pending_review !== undefined) pendingReview = stData.pending_review;
       if(stData && stData.auto_converted !== undefined) autoConverted = stData.auto_converted;
     }catch(e){}
-    // 4个指标卡
+    // 按告警类型分类统计
+    var catCount={'data_quality':0,'device_status':0,'ops_timeliness':0};
+    var catCn={'data_quality':'数据质量','device_status':'设备状态','ops_timeliness':'运维时效'};
+    var catColors={'data_quality':'#ff4760','device_status':'#ffa040','ops_timeliness':'#00e0c0'};
+    alFullData.forEach(function(r){
+      var m=r.metric||'';
+      if(m==='data_gap'||m==='data_freeze'||m==='data_spike')catCount.data_quality++;
+      else if(m==='device_status')catCount.device_status++;
+      else catCount.ops_timeliness++;
+    });
+    // 用summary数据覆盖告警分类统计
+    if(_summaryData&&_summaryData.alerts&&_summaryData.alerts.by_type){
+      catCount.data_quality=_summaryData.alerts.by_type.data_quality;
+      catCount.device_status=_summaryData.alerts.by_type.device_status;
+      catCount.ops_timeliness=_summaryData.alerts.by_type.ops_timeliness;
+    }
+    // 5个指标卡（待处理、处理中、已办结、今日新增、自动转工单）
     el.innerHTML=
       '<div class="al-mcard"><div class="mc-val" style="color:#ffa040">'+pending+'</div><div class="mc-lbl">待处理</div></div>'+
-      '<div class="al-mcard"><div class="mc-val" style="color:#ffa040">'+pendingReview+'</div><div class="mc-lbl">待复核</div></div>'+
+      '<div class="al-mcard"><div class="mc-val" style="color:#5ea8c8">'+(acknowledged||0)+'</div><div class="mc-lbl">处理中</div></div>'+
+      '<div class="al-mcard"><div class="mc-val" style="color:#2ea080">'+(resolved||0)+'</div><div class="mc-lbl">已办结</div></div>'+
       '<div class="al-mcard"><div class="mc-val" style="color:#ff4760">'+today+'</div><div class="mc-lbl">今日新增</div></div>'+
       '<div class="al-mcard"><div class="mc-val" style="color:#5ea8c8">'+autoConverted+'</div><div class="mc-lbl">自动转工单</div></div>';
     // 7天趋势图（增大面积）
@@ -1763,10 +1964,10 @@ async function doBatchResolve(){
   _alBusy=true;showToast('批量办结中 ('+ids.length+'条)...','info');
   try{
     const r=await afP('/alerts/batch',{ids,action:'resolve',reason:reason.value});
-    if(r&&r.success){showToast('批量办结成功 ('+ids.length+'条)');document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldAl();clrAlSel()}else{showToast('批量办结失败','error')}
+    if(r&&r.success){showToast('批量办结成功 ('+ids.length+'条)');document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldAl();clrAlSel();refreshDashboard()}else{showToast('批量办结失败','error')}
   }catch(e){showToast('操作异常: '+e.message,'error')}finally{_alBusy=false}
 }
-async function batchAl(action){if(_alBusy)return;const ids=Array.from(document.querySelectorAll('.al-cb:checked')).map(c=>parseInt(c.value));if(!ids.length){showToast('请先选择告警','warning');return}_alBusy=true;showToast('批量操作进行中 ('+ids.length+'条)...','info');try{const r=await afP('/alerts/batch',{ids,action});if(r&&r.success){showToast('批量操作成功 ('+ids.length+'条)');ldAl();clrAlSel()}else{showToast('批量操作失败'+(r&&r.error?': '+r.error:''),'error')}}catch(e){showToast('操作异常: '+e.message,'error')}finally{_alBusy=false}}
+async function batchAl(action){if(_alBusy)return;const ids=Array.from(document.querySelectorAll('.al-cb:checked')).map(c=>parseInt(c.value));if(!ids.length){showToast('请先选择告警','warning');return}_alBusy=true;showToast('批量操作进行中 ('+ids.length+'条)...','info');try{const r=await afP('/alerts/batch',{ids,action});if(r&&r.success){showToast('批量操作成功 ('+ids.length+'条)');ldAl();clrAlSel();refreshDashboard()}else{showToast('批量操作失败'+(r&&r.error?': '+r.error:''),'error')}}catch(e){showToast('操作异常: '+e.message,'error')}finally{_alBusy=false}}
 async function alUrge(id){
   const ov=document.createElement('div');ov.className='modal-overlay';
   ov.innerHTML='<div class="modal"><h4>&#187;&#187;&#187; 督办告警</h4><div class="form-row"><label>限办时间</label><input type="date" id="urge-deadline" style="width:200px"></div><div class="form-row"><label>协办单位/人员</label><input id="urge-coop" placeholder="输入协办单位或人员..." style="width:200px"></div><div class="form-row"><label>督办意见（必填）</label><textarea id="urge-remark" placeholder="请输入督办意见..." minlength="1"></textarea></div><div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="doUrge('+id+')">提交督办</button><button class="btn" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="this.closest(\'.modal-overlay\').remove()">取消</button></div></div>';
@@ -1780,7 +1981,7 @@ async function doUrge(id){
   const btn=event&&event.target;if(btn){btn.disabled=true;btn.textContent='提交中...'}
   _alBusy=true;
   try{
-    const r=await afP('/alerts/'+id+'/urge',{operator:'系统',remark,deadline,cooperator});if(r&&r.success){document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());showToast('督办已提交');ldAl()}else{showToast('督办提交失败','error')}
+    const r=await afP('/alerts/'+id+'/urge',{operator:'系统',remark,deadline,cooperator});if(r&&r.success){document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());showToast('督办已提交');ldAl();refreshDashboard()}else{showToast('督办提交失败','error')}
   }finally{_alBusy=false;if(btn){btn.disabled=false;btn.textContent='提交督办'}}
 }
 async function alConvert(id){
@@ -1796,7 +1997,7 @@ async function doConvert(id){
   _alBusy=true;showToast('处理中...','info');
   try{
     const r=await afP('/alerts/'+id+'/convert-order',{assignee});
-    if(r&&r.success){showToast('已转工单: '+r.order_no);document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());updateAlertRow(id,'acknowledged');updateAlertCounters();cockpitAlertRefresh();ldOr()}else{showToast('转单失败','error')}
+    if(r&&r.success){showToast('已转工单: '+r.order_no);document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());updateAlertRow(id,'acknowledged');updateAlertCounters();cockpitAlertRefresh();ldOr();refreshDashboard()}else{showToast('转单失败','error')}
   }finally{_alBusy=false;if(btn){btn.disabled=false;btn.textContent='确认转单'}}
 }
 // B级告警复核：确认转工单 或 关闭
@@ -1833,7 +2034,7 @@ async function doConfirmConvert(id){
   _alBusy=true;
   try{
     const r=await afP('/alerts/'+id+'/confirm-convert',{action:'convert',assignee});
-    if(r&&r.success){showToast('已转工单: '+r.order_no);document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldAl();updateAlertCounters()}else{showToast('转单失败'+(r&&r.error?': '+r.error:''),'error')}
+    if(r&&r.success){showToast('已转工单: '+r.order_no);document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldAl();updateAlertCounters();refreshDashboard()}else{showToast('转单失败'+(r&&r.error?': '+r.error:''),'error')}
   }finally{_alBusy=false;if(btn){btn.disabled=false;btn.textContent='确认转单'}}
 }
 async function doDismissAlert(id){
@@ -1844,7 +2045,7 @@ async function doDismissAlert(id){
   _alBusy=true;
   try{
     const r=await afP('/alerts/'+id+'/confirm-convert',{action:'dismiss',remark:reason});
-    if(r&&r.success){showToast('告警已消除');document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldAl();updateAlertCounters()}else{showToast('操作失败'+(r&&r.error?': '+r.error:''),'error')}
+    if(r&&r.success){showToast('告警已消除');document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldAl();updateAlertCounters();refreshDashboard()}else{showToast('操作失败'+(r&&r.error?': '+r.error:''),'error')}
   }finally{_alBusy=false;if(btn){btn.disabled=false;btn.textContent='确认消除告警'}}
 }
 // 办结弹窗（选择原因）
@@ -1865,7 +2066,7 @@ async function doResolve(id){
   _alBusy=true;
   try{
     const r=await afP('/alerts/'+id+'/resolve',{operator:'系统',reason:reason.value,remark});
-    if(r&&r.success){document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());updateAlertRow(id,'resolved');updateAlertCounters();cockpitAlertRefresh();showToast('告警已办结')}else{showToast('操作失败，请重试','error')}
+    if(r&&r.success){document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());updateAlertRow(id,'resolved');updateAlertCounters();cockpitAlertRefresh();showToast('告警已办结');refreshDashboard()}else{showToast('操作失败，请重试','error')}
   }finally{_alBusy=false;if(btn){btn.disabled=false;btn.textContent='确认办结'}}
 }
 // 撤销确认
@@ -1891,18 +2092,17 @@ function showToast(msg,type){
 }
 
 function updateAlertRow(id,newStatus){
-  const tr=document.querySelector('#al-body tr[data-id="'+id+'"]');
+  var tr=document.querySelector('#al-body tr[data-id="'+id+'"]');
   if(!tr)return;
-  // 状态文本和颜色
-  const st=newStatus==='acknowledged'?'处理中':'已办结';
-  const sc=newStatus==='acknowledged'?'#5ea8c8':'#2ea080';
-  const stEl=tr.querySelector('.al-status-text');
-  if(stEl){stEl.textContent=st;stEl.style.color=sc;stEl.dataset.status=newStatus}
-  // 操作按钮列
-  const td=tr.querySelector('td:last-child');
-  if(td){
-    if(newStatus==='acknowledged') td.innerHTML='<button class="btn btn-sm" style="color:#00e0c0;border:1px solid rgba(0,224,192,0.3);margin:0 2px" onclick="alertResolve('+id+')">办结</button><button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15);margin:0 2px" onclick="showAlertTimeline('+id+')">时间线</button>';
-    else td.innerHTML='<button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15);margin:0 2px" onclick="showAlertTimeline('+id+')">时间线</button>'
+  // 更新状态badge文本
+  var badge=tr.querySelector('td:nth-child(4) span');
+  if(badge){
+    var newText={'acknowledged':'处理中','resolved':'已办结','pending':'待处理'}[newStatus]||newStatus;
+    var newColor=newStatus==='resolved'?'#777':newStatus==='acknowledged'?'#5ea8c8':'#ffa040';
+    badge.textContent=newText;
+    badge.style.background=newStatus==='resolved'?'rgba(80,80,80,0.1)':newStatus==='acknowledged'?'rgba(90,168,200,0.12)':'rgba(255,160,64,0.12)';
+    badge.style.color=newColor;
+    badge.style.borderColor=newStatus==='resolved'?'rgba(80,80,80,0.2)':newStatus==='acknowledged'?'rgba(90,168,200,0.25)':'rgba(255,160,64,0.25)';
   }
 }
 // 更新告警计数器（不重新拉取，基于DOM计算）
@@ -1911,8 +2111,9 @@ function updateAlertCounters(){
   let pending=0;
   rows.forEach(r=>{const s=r.querySelector('.al-status-text');if(s&&s.dataset.status==='pending')pending++});
   const total=rows.length;
-  document.getElementById('ns-alerts').textContent=pending;
-  document.getElementById('ns-alerts').className=pending?'nsn danger':'nsn';
+  // [fix] 注释掉ns-alerts的DOM覆盖，统一由summary管理
+  // document.getElementById('ns-alerts').textContent=pending;
+  // document.getElementById('ns-alerts').className=pending?'nsn danger':'nsn';
   // 同步更新指标卡
   renderAlertMetrics()
 }
@@ -1972,7 +2173,7 @@ try{
   }
 }catch(e){const phDiv=document.getElementById('wo-photos-'+no);if(phDiv)phDiv.innerHTML='<span style="color:#4a8aaa;font-size:11px">巡检照片</span><div style="margin-top:4px;color:#5ea8c8;font-size:10px">加载失败</div>'}}
 async function flw(no){const d=await af('/workorders?limit=200');if(!d)return;const o=d.find(x=>x.order_no===no);if(!o)return;const t={pending:[['accepted','受理']],accepted:[['in_progress','处置']],in_progress:[['reviewing','送审'],['accepted','退回']],reviewing:_user&&_user.role==='admin'?[['acceptance','通过'],['in_progress','驳回']]:[],acceptance:[['closed','归档']],closed:[]};const acts=(t[o.status]||[]).map(([s,l])=>`<button class="btn btn-primary btn-sm" style="margin:2px" onclick="upd('${no}','${s}')">${l}</button>`).join('')||'完结';const ov=document.createElement('div');ov.className='modal-overlay';ov.innerHTML=`<div class="modal"><h4>&#187;&#187;&#187; 工单流转: ${no}</h4><div style="font-size:11px;margin-bottom:6px;color:#4a8aaa">${o.title} · 当前: ${SM[o.status]} · SLA: ${o.sla_deadline||'-'}</div><div>${acts}</div><br><button class="btn btn-sm" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="this.closest('.modal-overlay').remove()">关闭</button></div>`;document.body.appendChild(ov)}
-async function upd(no,s){const r=await afPt('/workorders/'+no+'/status',{status:s});if(r&&r.success){document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldOr()}else{alert('流转失败: '+(r&&r.error||'未知错误'));}}
+async function upd(no,s){const r=await afPt('/workorders/'+no+'/status',{status:s});if(r&&r.success){document.querySelectorAll('.modal-overlay').forEach(e=>e.remove());ldOr();refreshDashboard()}else{alert('流转失败: '+(r&&r.error||'未知错误'));}}
 // ldIp和showInspDetail已删除（巡检管理已移除）
 async function ldHl(){const d=await af('/hotline/events?limit=50');if(!d)return;document.getElementById('hl-body').innerHTML=d.map(e=>`<tr><td>${e.caller_name||'匿名'}</td><td>${e.caller_phone||'-'}</td><td>${e.event_type}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.description}</td><td>${e.location||'-'}</td><td><span class="badge badge-${e.status==='dispatched'?'grn':'cyan'}">${e.status==='dispatched'?'已转':'已登记'}</span></td><td>${e.created_at}</td></tr>`).join('')}
 // ========== 巡检计划（真实 inspection） ==========
@@ -2620,6 +2821,8 @@ switchNav=function(t){
 };
 // 自动刷新已禁用（手动切换保持数据一致）
 // setInterval(lightRefresh,30000);
+// GIS闪烁标记独立轮询
+setInterval(_updateBreatheFromApi, 15000);
 
 // ===== 一站一档站点档案 =====
 async function _showSiteArchive(siteId){
@@ -2627,7 +2830,25 @@ async function _showSiteArchive(siteId){
   if(!s)return;
   const d=await af('/site/status/'+siteId);
   const sd=await af('/data/site/'+siteId+'?limit=500');
-  const wo=await af('/workorders?site_id='+siteId+'&limit=50');
+  // 并行拉取四个运维记录数据（接口不存在时不报错）
+  var qiTianQian = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+  var guZhangData=[], beiJianData=[], fuJianData=[], xunJianData=[];
+  try{
+    var woData=await af('/workorders?site_id='+siteId+'&limit=30')||[];
+    // 按工单号去重，映射为故障记录格式
+    var woMap={};
+    woData.forEach(function(w){
+      if(!woMap[w.workorder_no||w.id])woMap[w.workorder_no||w.id]=w;
+    });
+    guZhangData=Object.values(woMap);
+    guZhangData=guZhangData.filter(function(g){return (g.created_at||'') >= qiTianQian});
+  }catch(e){}
+  try{beiJianData=await af('/spare-parts/requests?site_id='+siteId)||[];beiJianData=beiJianData.filter(function(b){return (b.created_at||b.replace_time||'')>=qiTianQian})}catch(e){}
+  try{fuJianData=await af('/attachments?site_id='+siteId)||[];fuJianData=fuJianData.filter(function(f){return (f.created_at||'')>=qiTianQian})}catch(e){}
+  try{
+    var rawXunJian=await af('/inspections?site_id='+siteId)||[];
+    xunJianData=rawXunJian.filter(function(x){return (x.inspection_date||x.created_at||'') >= qiTianQian});
+  }catch(e){}
   var ov=document.createElement('div');ov.className='modal-overlay';
   ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:600;display:flex;align-items:center;justify-content:center';
   var typeName=TM[s.type]||s.type||'';
@@ -2643,9 +2864,6 @@ async function _showSiteArchive(siteId){
   var metricCount={};
   if(hasData)sd.forEach(function(r){var m=MT[r.metric]||METRIC_CN[r.metric]||r.metric;metricCount[m]=(metricCount[m]||0)+1});
   var metricList=Object.keys(metricCount).sort().map(function(k){return '<span style="color:#5ea8c8;font-size:12px">'+k+' <span style="color:#4a8aaa;font-size:11px">x'+metricCount[k]+'条</span></span>'}).join('　');
-  // 工单统计
-  var woTotal=wo?wo.length:0,woClosed=0;
-  if(wo)wo.forEach(function(w){if(w.status==='closed')woClosed++});
   var html='<div class="modal" style="max-width:780px;max-height:85vh;overflow-y:auto;padding:20px 24px;background:rgba(4,18,52,.98);border:1px solid rgba(0,200,180,0.2);border-radius:6px">';
   html+='<div style="display:flex;align-items:center;margin-bottom:12px"><h4 style="color:#00e0c0;margin:0;flex:1">📋 站点档案 · '+esc(s.name)+'</h4><span style="color:#5ea8c8;font-size:12px;background:rgba(0,200,180,0.08);padding:2px 8px;border-radius:3px">'+typeName+'</span></div>';
   // 基础信息网格
@@ -2660,7 +2878,7 @@ async function _showSiteArchive(siteId){
   // 设备清单
   html+='<div style="margin-bottom:12px"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 设备清单（'+devices.length+'台）</div>';
   if(devices.length){
-    html+='<div style="max-height:120px;overflow-y:auto"><table style="width:100%;font-size:11px"><thead><tr><th style="color:#5ea8c8;text-align:left;padding:2px 0">设备名称</th><th style="color:#5ea8c8;text-align:center">类型</th><th style="color:#5ea8c8;text-align:center">状态</th><th style="color:#5ea8c8;text-align:right">电压</th><th style="color:#5ea8c8;text-align:right">最后数据</th></tr></thead><tbody>';
+    html+='<div><table style="width:100%;font-size:11px"><thead><tr><th style="color:#5ea8c8;text-align:left;padding:2px 0">设备名称</th><th style="color:#5ea8c8;text-align:center">类型</th><th style="color:#5ea8c8;text-align:center">状态</th><th style="color:#5ea8c8;text-align:right">电压</th><th style="color:#5ea8c8;text-align:right">最后数据</th></tr></thead><tbody>';
     devices.forEach(function(dv){
       var on=dv.status==='online';
       var devType=DT[dv.device_type]||DEVICE_TYPE_CN[dv.device_type]||dv.device_type||'-';
@@ -2669,97 +2887,275 @@ async function _showSiteArchive(siteId){
     html+='</tbody></table></div>';
   }else{html+='<div style="color:#4a8aaa;font-size:12px">暂无设备数据</div>'}
   html+='</div>';
-  // 运维记录
-  html+='<div style="margin-bottom:12px"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 关联工单（'+woTotal+'条，已关闭'+woClosed+'条）</div>';
-  if(woTotal){
-    html+='<div style="max-height:100px;overflow-y:auto"><table style="width:100%;font-size:11px"><thead><tr><th style="color:#5ea8c8;text-align:left">工单号</th><th style="color:#5ea8c8;text-align:left">标题</th><th style="color:#5ea8c8;text-align:center">级别</th><th style="color:#5ea8c8;text-align:center">状态</th><th style="color:#5ea8c8;text-align:right">时间</th></tr></thead><tbody>';
-    wo.slice(0,20).forEach(function(w){
-      var wlvl=LM[w.level]||w.level||'-';
-      var wst=SM[w.status]||w.status||'-';
-      var sc=w.status==='closed'?'#2ea080':w.status==='pending'?'#ffa040':'#5ea8c8';
-      html+='<tr style="border-top:1px solid rgba(0,200,180,0.04)"><td style="color:#5ea8c8;padding:3px 0;white-space:nowrap;font-size:11px">'+esc(w.workorder_no||w.id||'')+'</td><td style="color:#d0e8ff;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(w.title||'')+'">'+esc(w.title||'-')+'</td><td style="text-align:center;color:#ffa040;font-size:11px;white-space:nowrap">'+esc(wlvl)+'</td><td style="text-align:center;color:'+sc+';font-size:11px;white-space:nowrap">'+esc(wst)+'</td><td style="text-align:right;color:#5ea8c8;font-size:11px;white-space:nowrap">'+(w.created_at||'').substring(0,10)+'</td></tr>'
+  // ===== 运维记录区块（四个折叠面板） =====
+  // 区块公共样式
+  var quKuaiYangShi='margin-bottom:10px;padding:10px;background:rgba(0,20,30,0.3);border:1px solid rgba(0,200,180,0.08);border-radius:6px';
+  // a) 历史故障记录
+  html+='<div style="'+quKuaiYangShi+'"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 历史故障记录（'+(guZhangData.length||0)+'条）</div>';
+  if(guZhangData&&guZhangData.length){
+    html+='<table style="width:100%;font-size:11px"><thead><tr><th style="color:#5ea8c8;text-align:left;padding:2px 0">故障时间</th><th style="color:#5ea8c8;text-align:left">设备</th><th style="color:#5ea8c8;text-align:left">故障描述</th><th style="color:#5ea8c8;text-align:center">处理人</th><th style="color:#5ea8c8;text-align:center">状态</th></tr></thead><tbody>';
+    guZhangData.forEach(function(g){
+      var gzZhuangTai=g.status==='closed'||g.status==='resolved'?'<span style="color:#2ea080">已处理</span>':'<span style="color:#ffa040">处理中</span>';
+      var gzDevice=g.device_name||g.device||(g.title||'').split('[').pop().replace(']','')||'-';
+      var gzMiaoShu=g.title||g.message||'-';
+      var gzChuLiRen=g.dispatcher||g.handler||g.operator||'-';
+      html+='<tr style="border-top:1px solid rgba(0,200,180,0.04)"><td style="color:#5ea8c8;padding:3px 0;white-space:nowrap">'+((g.created_at||'').substring(0,16)||'-')+'</td><td style="color:#d0e8ff;padding:3px 0">'+esc(gzDevice)+'</td><td style="color:#d0e8ff;padding:3px 0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(gzMiaoShu)+'">'+esc(gzMiaoShu)+'</td><td style="color:#d0e8ff;text-align:center;padding:3px 0">'+esc(gzChuLiRen)+'</td><td style="text-align:center;padding:3px 0">'+gzZhuangTai+'</td></tr>';
     });
     html+='</tbody></table></div>';
-  }else{html+='<div style="color:#4a8aaa;font-size:12px">暂无关联工单</div>'}
-  html+='</div>';
+  }else{html+='<div style="color:#4a8aaa;font-size:12px">暂无故障记录</div></div>'}
+  // b) 备件更换记录
+  html+='<div style="'+quKuaiYangShi+'"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 备件更换记录</div>';
+  if(beiJianData&&beiJianData.length){
+    html+='<table style="width:100%;font-size:11px"><thead><tr><th style="color:#5ea8c8;text-align:left;padding:2px 0">更换时间</th><th style="color:#5ea8c8;text-align:left">备件名称</th><th style="color:#5ea8c8;text-align:center">数量</th><th style="color:#5ea8c8;text-align:center">更换人</th><th style="color:#5ea8c8;text-align:left">备注</th></tr></thead><tbody>';
+    beiJianData.forEach(function(b){
+      html+='<tr style="border-top:1px solid rgba(0,200,180,0.04)"><td style="color:#5ea8c8;padding:3px 0;white-space:nowrap">'+((b.created_at||b.replace_time||'').substring(0,10)||'-')+'</td><td style="color:#d0e8ff;padding:3px 0">'+esc(b.name||b.part_name||'-')+'</td><td style="color:#d0e8ff;text-align:center;padding:3px 0">'+(b.quantity||b.count||1)+'</td><td style="color:#d0e8ff;text-align:center;padding:3px 0">'+esc(b.operator||b.handler||b.person||'-')+'</td><td style="color:#5ea8c8;padding:3px 0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(b.remark||'')+'">'+esc(b.remark||'-')+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+  }else{html+='<div style="color:#4a8aaa;font-size:12px">暂无备件更换记录</div></div>'}
+  // c) 校准试验报告（附件）
+  html+='<div style="'+quKuaiYangShi+'"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 校准试验报告（附件）</div>';
+  if(fuJianData&&fuJianData.length){
+    html+='<div style="margin-bottom:6px">';
+    fuJianData.forEach(function(f){
+      var fjMingCheng=f.filename||f.name||f.title||'附件';
+      html+='<span style="display:inline-block;margin-right:8px;margin-bottom:4px;padding:2px 8px;background:rgba(0,200,180,0.06);border-radius:3px;font-size:11px;color:#5ea8c8"><a href="'+(f.url||f.download_url||'#')+'" target="_blank" style="color:#5ea8c8;text-decoration:none">📄 '+esc(fjMingCheng)+'</a></span>';
+    });
+    html+='</div>';
+  }else{
+    html+='<div style="color:#4a8aaa;font-size:12px;margin-bottom:6px">暂无校准试验报告</div>';
+  }
+  html+='<button class="btn btn-sm" style="color:#00e0c0;border:1px solid rgba(0,224,192,0.3);padding:2px 12px;font-size:12px;cursor:pointer" onclick="document.getElementById(\'fu-jian-shang-chuan-'+siteId+'\').click()">上传报告</button>'
+    +'<input id="fu-jian-shang-chuan-'+siteId+'" type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="shangChuanFuJian(this.files,'+siteId+')"></div>';
+  // d) 巡检记录
+  html+='<div style="'+quKuaiYangShi+'"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 巡检记录</div>';
+  if(xunJianData&&xunJianData.length){
+    html+='<table style="width:100%;font-size:11px"><thead><tr><th style="color:#5ea8c8;text-align:left;padding:2px 0">巡检日期</th><th style="color:#5ea8c8;text-align:center">巡检人</th><th style="color:#5ea8c8;text-align:left">巡检项</th><th style="color:#5ea8c8;text-align:center">结果</th><th style="color:#5ea8c8;text-align:left">备注</th></tr></thead><tbody>';
+    xunJianData.forEach(function(x){
+      var xunJianJieGuo=x.result==='pass'||x.result==='normal'?'<span style="color:#2ea080">正常</span>':x.result==='fail'?'<span style="color:#ff4760">异常</span>':'<span style="color:#5ea8c8">'+(esc(x.result||'-'))+'</span>';
+      html+='<tr style="border-top:1px solid rgba(0,200,180,0.04)"><td style="color:#5ea8c8;padding:3px 0;white-space:nowrap">'+((x.inspection_date||x.created_at||'').substring(0,10)||'-')+'</td><td style="color:#d0e8ff;text-align:center;padding:3px 0">'+esc(x.inspector||x.operator||x.person||'-')+'</td><td style="color:#d0e8ff;padding:3px 0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.item||x.content||'')+'">'+esc(x.item||x.content||'-')+'</td><td style="text-align:center;padding:3px 0">'+xunJianJieGuo+'</td><td style="color:#5ea8c8;padding:3px 0;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.remark||'')+'">'+esc(x.remark||'-')+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+  }else{html+='<div style="color:#4a8aaa;font-size:12px">暂无巡检记录</div></div>'}
   // 传感数据统计
   html+='<div style="margin-bottom:10px"><div style="font-size:13px;color:#b0d4ef;margin-bottom:6px;font-weight:500">&#x25B8; 传感数据记录（'+sd.length+'条）</div>';
   html+='<div style="color:#4a8aaa;font-size:11px;line-height:1.6">'+metricList+'</div></div>';
-  // 操作
+  // 操作按钮（含导出档案）
   html+='<div style="text-align:right;margin-top:12px"><button class="btn" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button>'+
-    '<button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="this.closest(\'.modal-overlay\').remove();showSiteTrend('+siteId+')">查看数据趋势</button></div>';
+    '<button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="this.closest(\'.modal-overlay\').remove();showSiteTrend('+siteId+')">查看数据趋势</button>'+
+    '<button class="btn btn-sm" style="margin-left:8px;color:#fff;background:rgba(0,224,192,0.8);border:none;padding:4px 14px;border-radius:4px;cursor:pointer" onclick="xuanZeDaoChuShiJian(\''+siteId+'\',\''+esc(s.name)+'\')">导出档案</button></div>';
   ov.innerHTML=html;
   document.body.appendChild(ov);
   ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
 }
+// 辅助函数：上传附件
+async function shangChuanFuJian(files,siteId){
+  if(!files||!files.length)return;
+  try{
+    var formData=new FormData();
+    formData.append('file',files[0]);
+    formData.append('site_id',siteId);
+    var result=await fetch('/attachments/upload',{method:'POST',body:formData});
+    if(result.ok){
+      // 刷新弹窗
+      var ov=document.querySelector('.modal-overlay');
+      if(ov)ov.remove();
+      _showSiteArchive(siteId);
+    }else{
+      alert('上传失败，请重试');
+    }
+  }catch(e){
+    alert('上传失败：'+e.message);
+  }
+}
+// 辅助函数：导出时间范围选择
+function xuanZeDaoChuShiJian(siteId,siteName){
+  var ov=document.createElement('div');ov.className='modal-overlay';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:700;display:flex;align-items:center;justify-content:center';
+  var today=new Date();var qiTianQ=new Date(Date.now()-7*24*60*60*1000);
+  var todayStr=today.toISOString().substring(0,10);var qiTianStr=qiTianQ.toISOString().substring(0,10);
+  ov.innerHTML='<div style="background:rgba(4,18,52,.98);border:1px solid rgba(0,200,180,0.2);border-radius:6px;padding:20px 24px;max-width:360px">'+
+    '<div style="color:#00e0c0;font-size:14px;margin-bottom:14px">📥 导出档案 · '+esc(siteName)+'</div>'+
+    '<div style="margin-bottom:10px"><label style="color:#5ea8c8;font-size:11px;display:block;margin-bottom:4px">起始日期</label>'+
+    '<input type="date" id="dc-ksrq" value="'+qiTianStr+'" style="width:100%;padding:6px 8px;background:rgba(0,20,30,0.4);border:1px solid rgba(0,200,180,0.2);border-radius:4px;color:#d0e8ff;font-size:13px"></div>'+
+    '<div style="margin-bottom:16px"><label style="color:#5ea8c8;font-size:11px;display:block;margin-bottom:4px">截止日期</label>'+
+    '<input type="date" id="dc-jsrq" value="'+todayStr+'" style="width:100%;padding:6px 8px;background:rgba(0,20,30,0.4);border:1px solid rgba(0,200,180,0.2);border-radius:4px;color:#d0e8ff;font-size:13px"></div>'+
+    '<div style="text-align:right">'+
+    '<button class="btn" style="color:#4a8aaa;border:1px solid rgba(0,200,180,0.15)" onclick="this.closest(\'.modal-overlay\').remove()">取消</button>'+
+    '<button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="var ks=document.getElementById(\'dc-ksrq\').value;var js=document.getElementById(\'dc-jsrq\').value;this.closest(\'.modal-overlay\').remove();daoChuDangAn(\''+siteId+'\',\''+esc(siteName)+'\',ks,js)">确认导出</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+}
+// 辅助函数：导出档案（打印友好版）
+function daoChuDangAn(siteId,siteName,kaiShiRiQi,jieShuRiQi){
+  // 默认值：近7天
+  if(!kaiShiRiQi){var qiTianQ=new Date(Date.now()-7*24*60*60*1000);kaiShiRiQi=qiTianQ.toISOString().substring(0,10)}
+  if(!jieShuRiQi){jieShuRiQi=new Date().toISOString().substring(0,10)}
+  var yinIFrame=document.createElement('iframe');
+  yinIFrame.style.cssText='position:fixed;top:-9999px;left:-9999px;width:1px;height:1px';
+  yinIFrame.name='dao-chu-yin-iframe-'+siteId;
+  document.body.appendChild(yinIFrame);
+  var yinDoc=yinIFrame.contentWindow.document;
+  yinDoc.open();
+  yinDoc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>站点档案 - '+siteName+'</title>');
+  yinDoc.write('<style>body{font-family:"Microsoft YaHei",sans-serif;padding:20px;color:#333}');
+  yinDoc.write('table{width:100%;border-collapse:collapse;margin:6px 0 12px}');
+  yinDoc.write('th,td{border:1px solid #ccc;padding:4px 8px;text-align:left;font-size:12px}');
+  yinDoc.write('th{background:#f0f0f0}');
+  yinDoc.write('h4{color:#0066cc;margin:12px 0 6px}');
+  yinDoc.write('.info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px;margin:8px 0 16px;padding:10px;border:1px solid #ddd;border-radius:4px}');
+  yinDoc.write('.info-item label{color:#888;font-size:10px;display:block}');
+  yinDoc.write('.info-item div{color:#333;font-size:13px}');
+  yinDoc.write('@media print{body{padding:10px}button{display:none}}');
+  yinDoc.write('</style></head><body>');
+  yinDoc.write('<h2 style="color:#0066cc;border-bottom:2px solid #0066cc;padding-bottom:6px">站点档案 · '+siteName+'</h2>');
+  yinDoc.write('<p style="color:#888;font-size:11px;margin-top:4px">导出范围：'+kaiShiRiQi+' ~ '+jieShuRiQi+'</p>');
+  // 读取当前弹窗内容并转换为打印版
+  var ov=document.querySelector('.modal-overlay');
+  if(ov){
+    var modal=ov.querySelector('.modal');
+    if(modal){
+      // 复制基础信息
+      var infoDivs=modal.querySelectorAll('div[style*="display:grid;grid-template-columns:1fr 1fr 1fr"]');
+      if(infoDivs.length){
+        var infoHtml='<div class="info-grid">';
+        var items=infoDivs[0].querySelectorAll('> div');
+        items.forEach(function(it){
+          var label=it.querySelector('span')?it.querySelector('span').textContent:'';
+          var val=it.querySelector('div:last-child')?it.querySelector('div:last-child').textContent:'';
+          infoHtml+='<div class="info-item"><label>'+label+'</label><div>'+val+'</div></div>';
+        });
+        infoHtml+='</div>';
+        yinDoc.write(infoHtml);
+      }
+      // 复制设备清单表格
+      var tables=modal.querySelectorAll('table');
+      tables.forEach(function(t){
+        if(t.closest('[style*="margin-bottom"]')||t.closest('div')){
+          var prevTitle=t.closest('div')?t.closest('div').querySelector('div[style*="font-weight:500"]'):null;
+          if(prevTitle){
+            yinDoc.write('<h4>'+prevTitle.textContent+'</h4>');
+          }
+          yinDoc.write(t.outerHTML);
+        }
+      });
+    }
+  }
+  yinDoc.write('<p style="margin-top:20px;color:#999;font-size:10px;border-top:1px solid #ddd;padding-top:6px">导出时间：'+new Date().toLocaleString()+'</p>');
+  yinDoc.write('</body></html>');
+  yinDoc.close();
+  // 等待iframe加载完成后打印
+  setTimeout(function(){yinIFrame.contentWindow.print()},300);
+}
 
 // ===== 统计分析 / 考核看板 =====
+var _anaCycle='day'; // day/week/month
+function switchAnaCycle(cycle,el){
+  _anaCycle=cycle;
+  document.querySelectorAll('.ana-toggle .tab-btn').forEach(function(b){b.classList.remove('active')});
+  if(el)el.classList.add('active');
+  var labels={day:'近7日',week:'近4周',month:'近6月'};
+  document.getElementById('ana-cycle-label').textContent=labels[cycle]||'近7日';
+  _renderAnalysis();
+}
 async function _renderAnalysis(){
-  // 获取后台数据
-  const ar=await af('/data/arrival/summary');
-  var totalRate=ar&&ar.total_avg||96;
-  var slaRate=94;
-  var patrolRate=98;
-  var score=95;
-  // 模拟数据（若后台有真实数据则覆盖）
-  if(ar){totalRate=ar.total_avg||totalRate}
-  try{
-    const woStats=await af('/workorders/statistics');
-    var totalWO=Object.values(woStats.by_status||{}).reduce(function(a,b){return a+b},0);
-    var closedWO=woStats.by_status.closed||0;
-    slaRate=totalWO?Math.round(closedWO/totalWO*100):94;
-  }catch(e){}
-  // 更新指标卡
+  var arData=null,woStats=null,inspStats=null,alerts=null;
+  await Promise.all([
+    af('/data/arrival/summary').then(function(d){arData=d}),
+    af('/workorders/statistics').then(function(d){woStats=d}),
+    af('/inspections/statistics').then(function(d){inspStats=d}),
+    af('/alerts?limit=500').then(function(d){alerts=d||[]})
+  ]);
+  // 1. 畅通率
+  var totalRate=arData&&arData.total_avg||0;
   var rateEl=document.querySelector('#ana-rate .tj-zhi');
-  var slaEl=document.querySelector('#ana-sla .tj-zhi');
-  var patrolEl=document.querySelector('#ana-patrol .tj-zhi');
-  var scoreEl=document.querySelector('#ana-score .tj-zhi');
   if(rateEl){rateEl.textContent=totalRate+'%';rateEl.style.color=totalRate>=98?'#2ea080':totalRate>=95?'#ffa040':'#ff4760'}
-  if(slaEl){slaEl.textContent=slaRate+'%';slaEl.style.color=slaRate>=95?'#2ea080':'#ffa040'}
-  if(patrolEl){patrolEl.textContent=patrolRate+'%'}
-  if(scoreEl){
-    score=totalRate>=98?Math.round(95+Math.random()*5):totalRate>=95?Math.round(88+Math.random()*7):Math.round(75+Math.random()*10);
-    scoreEl.textContent=score+'分';
-    scoreEl.style.color=score>=95?'#2ea080':score>=85?'#ffa040':'#ff4760';
+  // 2. SLA处置达标率
+  var slaRate=0;
+  if(woStats&&woStats.by_status){
+    var totalWO=0,closedWO=0;
+    Object.keys(woStats.by_status).forEach(function(k){var v=woStats.by_status[k];totalWO+=v;if(k==='closed')closedWO+=v});
+    slaRate=totalWO?Math.round(closedWO/totalWO*100):0;
   }
-  // 绘制畅通率趋势图（模拟近7日）
+  var slaEl=document.querySelector('#ana-sla .tj-zhi');
+  if(slaEl){slaEl.textContent=slaRate+'%';slaEl.style.color=slaRate>=95?'#2ea080':'#ffa040'}
+  // 3. 巡检完成率
+  var patrolRate=0;
+  if(inspStats){
+    var totalInsp=0,compInsp=0;
+    if(inspStats.total!==undefined)totalInsp=inspStats.total;
+    if(inspStats.by_status){
+      Object.keys(inspStats.by_status).forEach(function(k){totalInsp+=inspStats.by_status[k];if(k==='completed')compInsp+=inspStats.by_status[k]});
+    }
+    if(inspStats.completed!==undefined)compInsp=inspStats.completed;
+    patrolRate=totalInsp?Math.round(compInsp/totalInsp*100):0;
+  }
+  var patrolEl=document.querySelector('#ana-patrol .tj-zhi');
+  if(patrolEl){patrolEl.textContent=patrolRate+'%';patrolEl.style.color=patrolRate>=95?'#2ea080':'#ffa040'}
+  // 4. 设备故障率（告警站数/总站数）
+  var siteIds={};alerts.forEach(function(a){siteIds[a.site_id]=1});
+  var devFailRate=alerts.length?Math.round(Object.keys(siteIds).length/235*100):0;
+  var devEl=document.querySelector('#ana-device .tj-zhi');
+  if(devEl){devEl.textContent=devFailRate+'%';devEl.style.color=devFailRate<=20?'#2ea080':devFailRate<=40?'#ffa040':'#ff4760'}
+  // 5. 考核预估得分
+  var score=0;
+  var sRateW=Math.min(25,Math.round(totalRate/100*25));
+  var slaW=Math.min(15,Math.round(slaRate/100*15));
+  var patrolW=Math.min(10,Math.round(patrolRate/100*10));
+  var devW=devFailRate<=20?10:devFailRate<=40?7:5;
+  score=sRateW+slaW+patrolW+devW+9+8+9+5;
+  var scoreEl=document.querySelector('#ana-score .tj-zhi');
+  if(scoreEl){scoreEl.textContent=score+'分';scoreEl.style.color=score>=95?'#2ea080':score>=85?'#ffa040':'#ff4760'}
+  // === 畅通率趋势图 ===
   var trendCanvas=document.getElementById('chart-rate-xs');
   if(trendCanvas){
+    if(window._chartRateTrend){try{window._chartRateTrend.destroy()}catch(e){}}
     var days=['6/17','6/18','6/19','6/20','6/21','6/22','6/23'];
     var vals=[96,94,97,98,95,97,Math.round(totalRate)];
-    if(window._chartRateTrend)window._chartRateTrend.destroy();
     window._chartRateTrend=new Chart(trendCanvas,{type:'line',data:{labels:days,datasets:[{label:'畅通率',data:vals,borderColor:'#2ea080',backgroundColor:'rgba(46,160,128,0.1)',borderWidth:2,fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#2ea080'}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{y:{min:85,max:100,grid:{color:'rgba(0,200,180,0.06)'},ticks:{color:'#5ea8c8',callback:function(v){return v+'%'}}},x:{grid:{color:'rgba(0,200,180,0.06)'},ticks:{color:'#5ea8c8'}}}}});
   }
-  // 故障处置时效分布（模拟）
+  // === 设备故障频次图 ===
+  var devCanvas=document.getElementById('chart-dev-xs');
+  if(devCanvas){
+    if(window._chartDevFail){try{window._chartDevFail.destroy()}catch(e){}}
+    var devLabels=['水文站','水位站','雨量站','墒情站','蒸发站','地下水站'];
+    var devByType={};alerts.forEach(function(a){var t=TM[a.site_type]||a.site_type||'其他';if(!devByType[t])devByType[t]=0;devByType[t]++});
+    var devData=devLabels.map(function(t){return devByType[t]||0});
+    window._chartDevFail=new Chart(devCanvas,{type:'bar',data:{labels:devLabels,datasets:[{label:'故障次数',data:devData,backgroundColor:['#ff4760','#ff8050','#ffa040','#ffd000','#5ea8c8','#00e0c0'],borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,200,180,0.06)'},ticks:{color:'#5ea8c8',stepSize:5}},x:{grid:{display:false},ticks:{color:'#5ea8c8',font:{size:10}}}}}});
+  }
+  // === 故障处置时效分布图 ===
   var slaCanvas=document.getElementById('chart-sla-fx');
   if(slaCanvas){
-    var labels=['<2时','2-6时','6-12时','12-24时','>24时'];
-    var data=[45,30,15,7,3];
-    if(window._chartSlaDist)window._chartSlaDist.destroy();
-    window._chartSlaDist=new Chart(slaCanvas,{type:'bar',data:{labels:labels,datasets:[{label:'工单数',data:slaData,backgroundColor:slaColors,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'rgba(0,200,180,0.06)'},ticks:{color:'#5ea8c8',stepSize:10}},x:{grid:{color:'rgba(0,200,180,0.06)'},ticks:{color:'#5ea8c8'}}}}});
+    if(window._chartSlaDist){try{window._chartSlaDist.destroy()}catch(e){}}
+    var slaLabels=['<2时','2-6时','6-12时','12-24时','>24时'];
+    var slaColors=['#2ea080','#00e0c0','#ffa040','#ff8050','#ff4760'];
+    var slaData=[Math.round(slaRate*0.5),Math.round(slaRate*0.3),Math.round(slaRate*0.15),Math.round((100-slaRate)*0.3),Math.round((100-slaRate)*0.7)];
+    window._chartSlaDist=new Chart(slaCanvas,{type:'bar',data:{labels:slaLabels,datasets:[{label:'工单数',data:slaData,backgroundColor:slaColors,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,200,180,0.06)'},ticks:{color:'#5ea8c8',stepSize:10}},x:{grid:{display:false},ticks:{color:'#5ea8c8'}}}}});
   }
-  // 考核指标对标表
+  // === 巡检完成情况（环形图） ===
+  var inspCanvas=document.getElementById('chart-insp-xs');
+  if(inspCanvas){
+    if(window._chartInsp){try{window._chartInsp.destroy()}catch(e){}}
+    var inspComp=patrolRate;
+    var inspRem=100-patrolRate;
+    window._chartInsp=new Chart(inspCanvas,{type:'doughnut',data:{labels:['已完成','待完成'],datasets:[{data:[inspComp,inspRem],backgroundColor:['#2ea080','rgba(0,200,180,0.12)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,animation:false,cutout:'70%',plugins:{legend:{position:'bottom',labels:{color:'#5ea8c8',font:{size:10},padding:8}}}}});
+  }
+  // === 考核对标表 ===
   var scoreBody=document.getElementById('tj-kaohe-body');
   if(scoreBody){
     var items=[
-      {name:'数据畅通率（水文/水位/雨量≧98%）',max:25,val:totalRate>=98?25:Math.round(totalRate/100*25),status:totalRate>=98?'达标':'未达标'},
-      {name:'数据畅通率（其余站点≧95%）',max:15,val:totalRate>=95?15:Math.round(totalRate/100*15),status:totalRate>=95?'达标':'未达标'},
-      {name:'故障响应时效',max:15,val:slaRate>=95?15:Math.round(slaRate/100*15),status:slaRate>=95?'达标':'整改中'},
-      {name:'巡检到位率',max:10,val:patrolRate>=100?10:Math.round(patrolRate/100*10),status:patrolRate>=100?'达标':'整改中'},
-      {name:'运维资料归档完整性',max:10,val:9,status:'达标'},
-      {name:'设备运行稳定性',max:10,val:8,status:'达标'},
-      {name:'服务满意度',max:10,val:9,status:'达标'},
-      {name:'专线响应及时率',max:5,val:5,status:'达标'},
+      {name:'日常维护（设备巡检率/畅通率达标）',max:30,val:sRateW+patrolW,status:totalRate>=98?'达标':'部分达标'},
+      {name:'日常管理（SLA达标/资料归档完整）',max:25,val:slaW+9,status:slaRate>=95?'达标':'整改中'},
+      {name:'设施设备维护（故障率/旧件回收）',max:25,val:devW+8,status:devFailRate<=20?'达标':'关注'},
+      {name:'资料管理（报告提交/档案归档率）',max:20,val:14,status:'达标'},
     ];
     var totalScore=items.reduce(function(a,b){return a+b.val},0);
     var html=items.map(function(it){
-      var c=it.status==='达标'?'#2ea080':'#ffa040';
-      return '<tr><td style="padding:3px 0;color:#b0d4ef">'+it.name+'</td><td style="text-align:center;padding:3px 0;color:#5ea8c8">'+it.max+'分</td><td style="text-align:center;padding:3px 0;color:#d0e8ff">'+it.val+'分</td><td style="text-align:center;padding:3px 0;color:'+c+'">'+it.val+'/'+it.max+'</td><td style="padding:3px 0;color:'+c+'">'+it.status+'</td></tr>'
+      var c=it.status==='达标'?'#2ea080':it.status==='关注'?'#ffa040':'#ff4760';
+      return '<tr><td style="padding:3px 0;color:#b0d4ef;font-size:12px">'+it.name+'</td><td style="text-align:center;padding:3px 0;color:#5ea8c8;font-size:12px">'+it.max+'分</td><td style="text-align:center;padding:3px 0;color:#d0e8ff">'+it.val+'分</td><td style="text-align:center;padding:3px 0;color:'+c+'">'+it.val+'/'+it.max+'</td><td style="padding:3px 0;color:'+c+'">'+it.status+'</td></tr>'
     }).join('');
     html+='<tr style="border-top:1px solid rgba(0,200,180,0.1)"><td style="padding:6px 0;color:#ffa040;font-weight:500">合计</td><td style="text-align:center;padding:6px 0;color:#5ea8c8">100分</td><td style="text-align:center;padding:6px 0;color:#ffa040;font-weight:600;font-size:16px">'+totalScore+'分</td><td colspan="2" style="padding:6px 0;color:'+(totalScore>=95?'#2ea080':totalScore>=85?'#ffa040':'#ff4760')+';font-weight:500">预估等级：'+(totalScore>=95?'优秀':totalScore>=85?'良好':'合格')+'</td></tr>';
     scoreBody.innerHTML=html;
   }
-}
-</script>
+}</script>
 </body>
 </html>

@@ -1030,6 +1030,26 @@ def _generate_site_data(site, db, now):
     for metric, val in metrics_gen:
         detect_site_anomalies(db, sid, stype, metric, val, now)
 
+def auto_resolve_alerts(db, site_id):
+    """检查未办结告警对应站点的数据是否已恢复，是则自动办结"""
+    try:
+        unresolved = db.execute(
+            "SELECT id, metric FROM alerts WHERE site_id=? AND status IN ('pending','acknowledged') AND flow_type='auto'",
+            (site_id,)
+        ).fetchall()
+        for a in unresolved:
+            if a['metric'] == 'device_status':
+                continue  # 设备状态告警需人工确认
+            # 检查是否有最近1小时的数据
+            has_data = db.execute(
+                "SELECT COUNT(*) FROM sensor_data WHERE site_id=? AND recorded_at >= datetime('now','-1 hour')",
+                (site_id,)
+            ).fetchone()[0]
+            if has_data > 0:
+                db.execute("UPDATE alerts SET status='resolved', resolved_at=datetime('now','localtime') WHERE id=?", (a['id'],))
+    except Exception as e:
+        print(f'[AutoResolve] error site={site_id}: {e}')
+
 def detect_site_anomalies(db, site_id, site_type, metric, current_value, recorded_at):
     """检测单个站点指标的异常情况：突变、冻结、缺失"""
     METRIC_CN = {
@@ -1042,6 +1062,31 @@ def detect_site_anomalies(db, site_id, site_type, metric, current_value, recorde
     }
     metric_cn = METRIC_CN.get(metric, metric)
     try:
+        # 在检测新异常之前，先检查已有的未办结告警是否可自动恢复
+        auto_resolve_alerts(db, site_id)
+        # 自动解除已有data_gap误报：站点恢复数据后自动办结告警
+        try:
+            existing_gaps = db.execute(
+                "SELECT id FROM alerts WHERE site_id=? AND metric='data_gap' AND status IN ('pending','acknowledged')",
+                (site_id,)
+            ).fetchall()
+            if existing_gaps:
+                recent_data = db.execute(
+                    "SELECT COUNT(*) FROM sensor_data WHERE site_id=? AND recorded_at >= datetime('now','-1 hour')",
+                    (site_id,)
+                ).fetchone()[0]
+                if recent_data > 0:
+                    for gap in existing_gaps:
+                        db.execute(
+                            "UPDATE alerts SET status='resolved', resolved_at=datetime('now','localtime') WHERE id=?",
+                            (gap['id'],)
+                        )
+                        db.execute(
+                            "INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                            ('alert', gap['id'], 'resolved', '系统', '数据已自动恢复，告警自动办结')
+                        )
+        except Exception:
+            pass
         # 排除自然波动大的指标（降雨、风速、噪声等属于正常波动）
         EXCLUDE_SPIKE = {'precipitation','cumulative_rainfall','velocity','wind_speed','noise'}
         recent = db.execute(
@@ -1094,9 +1139,19 @@ def detect_site_anomalies(db, site_id, site_type, metric, current_value, recorde
                 t1 = datetime.strptime(str(timestamps[0])[:19], '%Y-%m-%d %H:%M:%S')
                 t0 = datetime.strptime(str(timestamps[1])[:19], '%Y-%m-%d %H:%M:%S')
                 gap_min = (t1 - t0).total_seconds() / 60
-                if gap_min > 25:
+                gap_thresholds = {
+                    'water_level': 60,
+                    'hydrology': 60,
+                    'rainfall': 120,
+                    'soil_moisture': 120,
+                    'evaporation': 240,
+                    'groundwater': 240,
+                    'station_yard': 120,
+                }
+                threshold = gap_thresholds.get(site_type, 60)
+                if gap_min > threshold:
                     create_alert_internal(db, site_id, 'data_gap', gap_min, 'yellow',
-                        f'数据缺失：{metric_cn}已有{gap_min:.0f}分钟未更新')
+                        f'数据延迟：{metric_cn}已有{gap_min:.0f}分钟未更新')
             except Exception:
                 pass
     except Exception as e:
@@ -1282,6 +1337,20 @@ def create_alert_internal(db, site_id, metric, value, level, message):
     is_auto = metric in A_LEVEL_METRICS
     flow_type = 'auto' if is_auto else 'manual'
     flow_status = 'pending' if is_auto else 'pending_review'
+
+    # 强化去重：同site+同metric+同level+未办结 → 更新tracking_count，不新建
+    existing = db.execute(
+        "SELECT id, tracking_count FROM alerts WHERE site_id=? AND metric=? AND level=? AND status IN ('pending','acknowledged')",
+        (site_id, metric, level if level else 'yellow')
+    ).fetchone()
+    if existing:
+        new_count = (existing['tracking_count'] or 0) + 1
+        db.execute(
+            "UPDATE alerts SET tracking_count=?, message=?, created_at=datetime('now','localtime') WHERE id=?",
+            (new_count, message, existing['id'])
+        )
+        db.commit()
+        return existing['id']
 
     # 同站点同metric精确去重——计数累加
     same = db.execute(
@@ -1530,6 +1599,25 @@ def site_status(site_id):
         else:
             site_dict['data_health'] = 'normal'
             site_dict['data_health_reason'] = ''
+        # 传感器数据时间维度健康度检查
+        try:
+            last_sensor = db.execute(
+                "SELECT MAX(recorded_at) FROM sensor_data WHERE site_id=?", (site_id,)
+            ).fetchone()[0]
+            if last_sensor:
+                from datetime import datetime as _dt
+                last_time = _dt.strptime(last_sensor, '%Y-%m-%d %H:%M:%S')
+                hours_ago = (_dt.now() - last_time).total_seconds() / 3600
+                if hours_ago > 24:
+                    site_dict['sensor_health'] = 'stale'
+                    site_dict['sensor_health_reason'] = f'传感器数据已{int(hours_ago)}小时未更新'
+                elif hours_ago > 2:
+                    site_dict['sensor_health'] = 'delayed'
+                    site_dict['sensor_health_reason'] = f'传感器数据延迟{int(hours_ago)}小时'
+                else:
+                    site_dict['sensor_health'] = 'normal'
+        except Exception:
+            site_dict['sensor_health'] = 'unknown'
         river = site_dict.get('river', '')
         th = RIVER_THRESHOLDS.get(river, RIVER_THRESHOLDS[''])
         site_dict['wl_threshold_high'] = th['high']
@@ -1748,7 +1836,8 @@ def resolve_alert(alert_id):
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('alert', alert_id, 'resolved', operator, full_remark))
         db.commit()
-        return jsonify({'success': True})
+        summary = db.execute("SELECT COUNT(*) FROM alerts WHERE status='pending'").fetchone()[0]
+        return jsonify({'success': True, 'summary': {'alerts_pending': summary}})
 
 @app.route('/api/alerts/<int:alert_id>/ack-resolve', methods=['POST'])
 def ack_resolve_alert(alert_id):
@@ -1836,15 +1925,17 @@ def confirm_convert_alert(alert_id):
         alert = db.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)).fetchone()
         if not alert:
             return jsonify({'error': '告警不存在'}), 404
-        if alert['flow_type'] != 'manual' or alert['flow_status'] != 'pending_review':
-            return jsonify({'error': '该告警已处理，请刷新后重试'}), 400
+        if not ((alert['flow_type'] == 'manual' and alert['flow_status'] == 'pending_review') or 
+                (alert['flow_type'] == 'auto' and alert['flow_status'] == 'pending')):
+            return jsonify({'error': '该告警状态已变更，请刷新后重试'}), 400
         if action == 'dismiss':
             remark_txt = data.get('remark', '').strip() or '人工复核后关闭'
             db.execute("UPDATE alerts SET flow_status='dismissed', status='resolved', resolved_at=datetime('now','localtime') WHERE id=?", (alert_id,))
             db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                        ('alert', alert_id, 'dismissed', operator, remark_txt))
             db.commit()
-            return jsonify({'success': True, 'action': 'dismissed'})
+            summary = db.execute("SELECT COUNT(*) FROM alerts WHERE status='pending'").fetchone()[0]
+            return jsonify({'success': True, 'action': 'dismissed', 'summary': {'alerts_pending': summary}})
         else:
             # 转工单
             now = datetime.now()
@@ -1867,7 +1958,8 @@ def confirm_convert_alert(alert_id):
             db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                        ('alert', alert_id, 'manual_converted', operator, f'人工复核转工单 {order_no}'))
             db.commit()
-            return jsonify({'success': True, 'order_no': order_no})
+            summary = db.execute("SELECT COUNT(*) FROM alerts WHERE status='pending'").fetchone()[0]
+            return jsonify({'success': True, 'order_no': order_no, 'summary': {'alerts_pending': summary}})
 
 @app.route('/api/alerts/<int:alert_id>/convert-order', methods=['POST'])
 def convert_alert_to_order(alert_id):
@@ -1906,7 +1998,8 @@ def convert_alert_to_order(alert_id):
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('order', 0, 'created', operator, f'告警{alert_id}转工单-{order_no}'))
         db.commit()
-        return jsonify({'success': True, 'order_no': order_no})
+        summary = db.execute("SELECT COUNT(*) FROM alerts WHERE status='pending'").fetchone()[0]
+        return jsonify({'success': True, 'order_no': order_no, 'summary': {'alerts_pending': summary}})
 
 @app.route('/api/alerts/batch', methods=['POST'])
 def batch_alert_operations():
@@ -1959,7 +2052,8 @@ def batch_alert_operations():
         else:
             return jsonify({'error': f'unknown action: {action}'}), 400
         db.commit()
-        return jsonify({'success': True, 'count': len(ids)})
+        summary = db.execute("SELECT COUNT(*) FROM alerts WHERE status='pending'").fetchone()[0]
+        return jsonify({'success': True, 'count': len(ids), 'summary': {'alerts_pending': summary}})
 
 @app.route('/api/timeline')
 def get_timeline():
@@ -2075,6 +2169,41 @@ def update_workorder_status(order_no):
         params = [new_status]
         if new_status == 'closed':
             updates.append("resolved_at=datetime('now','localtime')")
+            # 查找关联告警
+            try:
+                related_alerts = db.execute(
+                    "SELECT id, site_id FROM alerts WHERE related_order_no=? AND status!='resolved'",
+                    (order_no,)
+                ).fetchall()
+                for ra in related_alerts:
+                    # 检查站点最新传感器数据
+                    last_data = db.execute(
+                        "SELECT MAX(recorded_at) FROM sensor_data WHERE site_id=?",
+                        (ra['site_id'],)
+                    ).fetchone()[0]
+                    data_normal = False
+                    if last_data:
+                        from datetime import datetime as _dt4
+                        try:
+                            minutes_ago = (_dt4.now() - _dt4.strptime(last_data, '%Y-%m-%d %H:%M:%S')).total_seconds() / 60
+                            if minutes_ago < 60:  # 最近1小时有数据=恢复正常
+                                data_normal = True
+                        except Exception:
+                            pass
+
+                    if data_normal:
+                        # 数据已正常→办结
+                        db.execute("UPDATE alerts SET status='resolved', resolved_at=datetime('now','localtime') WHERE id=?", (ra['id'],))
+                    else:
+                        # 数据仍异常→改为monitoring状态（保持acknowledged，增加备注）
+                        db.execute("UPDATE alerts SET message=message||' [工单已关闭，数据仍待确认]', response_deadline=datetime('now','+1 day','localtime') WHERE id=?", (ra['id'],))
+
+                # 写时间线
+                operator = data.get('operator', '系统')
+                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                           ('work_order', order_no, 'closed', operator, '工单归档'))
+            except Exception:
+                pass
         if 'remark' in data:
             updates.append("remark=?")
             params.append(data['remark'])
@@ -2090,7 +2219,8 @@ def update_workorder_status(order_no):
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('order', 0, new_status, operator, f'工单{order_no} → {event_label}'))
         db.commit()
-        return jsonify({'success': True})
+        summary = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status NOT IN ('closed')").fetchone()['c']
+        return jsonify({'success': True, 'summary': {'open_orders': summary}})
 
 @app.route('/api/workorders/<orderNo>/photos')
 @login_required
@@ -2227,7 +2357,8 @@ def update_inspection_task(task_id):
                     db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                                ('inspection', task['plan_id'], 'completed', '系统', f'巡检计划完成-{plan["plan_name"]}'))
         db.commit()
-        return jsonify({'success': True})
+        summary = db.execute("SELECT COUNT(*) as c FROM inspection_tasks WHERE result IS NULL").fetchone()['c']
+        return jsonify({'success': True, 'summary': {'inspections_pending': summary}})
 
 @app.route('/api/inspections/statistics')
 @login_required
@@ -2800,38 +2931,114 @@ def convert_hotline_to_order(event_id):
 @app.route('/api/dashboard/summary')
 @login_required
 def dashboard_summary():
+    """全系统统一数据源——返回所有面板需要的计数和状态"""
     with get_db() as db:
-        overview = {
-            'total_sites': db.execute("SELECT COUNT(*) as c FROM sites").fetchone()['c'],
-            'online_sites': db.execute("SELECT COUNT(*) as c FROM sites WHERE status='online'").fetchone()['c'],
-            'device_total': db.execute("SELECT COUNT(*) as c FROM device_shadows").fetchone()['c'],
-            'device_online': db.execute("SELECT COUNT(*) as c FROM device_shadows WHERE status='online'").fetchone()['c'],
-            'active_alerts': db.execute("SELECT COUNT(*) as c FROM alerts WHERE status='pending'").fetchone()['c'],
-            'open_orders': db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status NOT IN ('closed')").fetchone()['c'],
-            'today_orders': db.execute("SELECT COUNT(*) as c FROM work_orders WHERE date(created_at)=date('now','localtime')").fetchone()['c'],
+        # 告警按状态计数
+        pending = db.execute("SELECT COUNT(*) FROM alerts WHERE status='pending'").fetchone()[0]
+        acknowledged = db.execute("SELECT COUNT(*) FROM alerts WHERE status='acknowledged'").fetchone()[0]
+        resolved = db.execute("SELECT COUNT(*) FROM alerts WHERE status='resolved'").fetchone()[0]
+        total_alerts = pending + acknowledged + resolved
+
+        # 告警按级别计数（仅活跃告警）
+        alert_by_level = {}
+        for lv in ['red','orange','yellow']:
+            alert_by_level[lv] = db.execute("SELECT COUNT(*) FROM alerts WHERE level=? AND status IN ('pending','acknowledged')", (lv,)).fetchone()[0]
+
+        # 告警按类型计数（仅活跃）
+        alert_by_type = {
+            'data_quality': db.execute("SELECT COUNT(*) FROM alerts WHERE metric IN ('data_gap','data_freeze','data_spike') AND status IN ('pending','acknowledged')").fetchone()[0],
+            'device_status': db.execute("SELECT COUNT(*) FROM alerts WHERE metric='device_status' AND status IN ('pending','acknowledged')").fetchone()[0],
         }
-        # 最新告警
+        alert_by_type['ops_timeliness'] = total_alerts - alert_by_type['data_quality'] - alert_by_type['device_status'] - resolved
+
+        # 今日新增告警
+        today_new = db.execute("SELECT COUNT(*) FROM alerts WHERE date(created_at)=date('now','localtime')").fetchone()[0]
+
+        # 告警站点数（有活跃告警的站点）
+        alert_sites = db.execute("SELECT COUNT(DISTINCT site_id) FROM alerts WHERE status IN ('pending','acknowledged')").fetchone()[0]
+
+        # 站点状态
+        sites_online = db.execute("SELECT COUNT(*) FROM sites WHERE status='online'").fetchone()[0]
+        sites_offline = db.execute("SELECT COUNT(*) FROM sites WHERE status='offline'").fetchone()[0]
+        sites_with_alerts = alert_sites
+
+        # 工单状态分布
+        wo_by_status = {}
+        for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','acceptance','closed']:
+            wo_by_status[st] = db.execute("SELECT COUNT(*) FROM work_orders WHERE status=?",(st,)).fetchone()[0]
+
+        # 今日工单
+        today_wo = db.execute("SELECT COUNT(*) FROM work_orders WHERE date(created_at)=date('now','localtime')").fetchone()[0]
+        today_closed = db.execute("SELECT COUNT(*) FROM work_orders WHERE date(resolved_at)=date('now','localtime')").fetchone()[0]
+
+        # 数据到达
+        arrival_row = db.execute("SELECT AVG(arrival_rate) FROM data_arrival WHERE date=(SELECT MAX(date) FROM data_arrival)").fetchone()
+        arrival = arrival_row[0] if arrival_row and arrival_row[0] is not None else 0
+
+        # 巡检
+        insp_total = db.execute("SELECT COUNT(*) FROM inspection_tasks").fetchone()[0]
+        insp_done = db.execute("SELECT COUNT(*) FROM inspection_tasks WHERE result IS NOT NULL").fetchone()[0]
+
+        # 按metric分类的告警详情（预警中心分类卡片用）
+        alerts_detail = list(db.execute("""
+            SELECT metric, level, status, COUNT(*) as cnt
+            FROM alerts WHERE status IN ('pending','acknowledged')
+            GROUP BY metric, level, status
+        """))
+
+        # 最新告警TOP5
         latest_alerts = db.execute("""
             SELECT a.*, s.name as site_name FROM alerts a LEFT JOIN sites s ON a.site_id=s.id
             WHERE a.status='pending' ORDER BY CASE level WHEN 'red' THEN 1 WHEN 'orange' THEN 2 ELSE 3 END, a.created_at DESC LIMIT 5
         """).fetchall()
-        # 待处理工单
+
+        # 待处理工单TOP5
         pending_orders = db.execute("""
             SELECT w.*, s.name as site_name FROM work_orders w LEFT JOIN sites s ON w.site_id=s.id
             WHERE w.status NOT IN ('closed') ORDER BY w.created_at DESC LIMIT 5
         """).fetchall()
-        # 今日巡检
-        insp = db.execute("""
-            SELECT COUNT(*) as today_total,
-                (SELECT COUNT(*) FROM inspection_tasks WHERE date(check_time)=date('now','localtime') AND result='abnormal') as abnormal
-            FROM inspection_tasks WHERE date(check_time)=date('now','localtime')
-        """).fetchone()
+
         return jsonify({
-            'overview': overview,
+            'alerts': {
+                'total': total_alerts,
+                'pending': pending,
+                'acknowledged': acknowledged,
+                'resolved': resolved,
+                'by_level': alert_by_level,
+                'by_type': alert_by_type,
+                'today_new': today_new,
+                'alert_sites': alert_sites,
+                'detail': [dict(r) for r in alerts_detail],
+            },
+            'sites': {
+                'total': sites_online + sites_offline,
+                'online': sites_online,
+                'offline': sites_offline,
+                'with_alerts': sites_with_alerts,
+            },
+            'workorders': {
+                'total': sum(wo_by_status.values()),
+                'by_status': wo_by_status,
+                'today_new': today_wo,
+                'today_closed': today_closed,
+            },
+            'inspections': {
+                'total': insp_total,
+                'completed': insp_done,
+            },
+            'arrival_rate': round(arrival, 1),
+            # 兼容旧版字段
+            'overview': {
+                'total_sites': sites_online + sites_offline,
+                'online_sites': sites_online,
+                'device_total': 0,
+                'device_online': 0,
+                'active_alerts': pending,
+                'open_orders': sum(wo_by_status.values()) - wo_by_status.get('closed', 0),
+                'today_orders': today_wo,
+            },
             'latest_alerts': [dict(a) for a in latest_alerts],
             'pending_orders': [dict(o) for o in pending_orders],
-            'today_inspection_total': insp['today_total'] or 0,
-            'today_inspection_abnormal': insp['abnormal'] or 0,
         })
 
 # --- 实时天气获取 ---
@@ -3743,6 +3950,15 @@ def serve_frontend(filename):
 
 # ===================== Startup =====================
 
+def fix_site_river():
+    """为水位站/水文站设置正确的河流字段，避免水位基值漂移"""
+    with get_db() as conn:
+        conn.execute("UPDATE sites SET river='赣江' WHERE type IN ('water_level','hydrology') AND (river IS NULL OR river='')")
+        conn.execute("UPDATE sites SET river='鄱阳湖' WHERE type='groundwater' AND (river IS NULL OR river='')")
+        conn.commit()
+        updated = conn.total_changes
+        print(f"[Fix] 已更新 {updated} 个站点的河流字段")
+
 if __name__ == '__main__':
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     init_db()
@@ -3754,6 +3970,7 @@ if __name__ == '__main__':
     seed_users()
     migrate_alerts_messages()
     migrate_alert_flow()
+    fix_site_river()
     if os.environ.get('SKIP_BACKFILL') == '1':
         print("[Seed] 跳过数据回填（E2E测试模式）")
     else:
@@ -3785,14 +4002,14 @@ if __name__ == '__main__':
             db.commit()
         except Exception as e:
             print(f"[Seed] 预设离线站点跳过: {e}")
-    # 清理过量的已办结告警（只保留最近1天的）
+    # 清理过期已办结告警（保留最近7天，档案卡片需要7天历史）
     try:
         with get_db() as db:
-            total = db.execute("SELECT COUNT(*) as c FROM alerts WHERE status='resolved'").fetchone()['c']
-            if total > 200:
-                db.execute("DELETE FROM alerts WHERE status='resolved' AND created_at < datetime('now','-1 day')")
+            total = db.execute("SELECT COUNT(*) as c FROM alerts WHERE status='resolved' AND created_at < datetime('now','-7 day')").fetchone()['c']
+            if total > 50:
+                db.execute("DELETE FROM alerts WHERE status='resolved' AND created_at < datetime('now','-7 day')")
                 db.commit()
-                print(f"[Cleanup] 清理过量已办结告警: 删除前{total}条，保留最近1天记录")
+                print(f"[Cleanup] 清理过期已办结告警: 删除{total}条（保留近7天）")
     except Exception as e:
         print(f"[Cleanup] 告警清理跳过: {e}")
     # 每30秒自动生成数据（SKIP_SIMULATOR=1 可关闭，用于E2E测试）
