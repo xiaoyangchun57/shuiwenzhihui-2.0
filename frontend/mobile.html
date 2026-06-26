@@ -485,7 +485,7 @@ body{
     </div>
     <div class="sd-subtabs">
       <div class="sd-subtab active" onclick="switchSdTab(0)">设备运行</div>
-      <div class="sd-subtab" onclick="switchSdTab(1)">巡检计划</div>
+      <div class="sd-subtab" onclick="switchSdTab(1)">站点档案</div>
     </div>
     <div class="sd-panel active" id="sd-panel-0"><div class="loading">加载中...</div></div>
     <div class="sd-panel" id="sd-panel-1"><div class="loading">加载中...</div></div>
@@ -689,7 +689,7 @@ async function init(){
   allSites=await af('/sites')||[];
   allWO=await af('/workorders?limit=50')||[];
   allAlerts=await af('/alerts?limit=200')||[];
-  allInsp=await af('/inspections')||[];
+  allInsp=(await af('/inspections')||{}).plans||[];
   updateTaskCounter();renderHome();initSwipe();alignHomeHeader();updateDateTime(); // 再次刷新区域
   setInterval(function(){updateDateTime();refreshData()},30000);
 }
@@ -697,7 +697,7 @@ async function refreshData(){
   allSites=await af('/sites')||[];
   allWO=await af('/workorders?limit=50')||[];
   allAlerts=await af('/alerts?limit=200')||[];
-  allInsp=await af('/inspections')||[];
+  allInsp=(await af('/inspections')||{}).plans||[];
   updateTaskCounter();renderHome();alignHomeHeader();updateDateTime();
 }
 var _currentDistrict=''; // 缓存区域
@@ -835,7 +835,7 @@ function renderWOPanel(){
   if(!active.length){html='<div class="empty">暂无进行中工单</div>'}
   else for(var j=0;j<Math.min(active.length,10);j++){
     var w=active[j],pct=WO_PCT[w.status]||0,sb=SB_CLASS[w.status]||'sb-pending';
-    html+='<div class="weui-card" onclick="openWoDetail('+JSON.stringify(w.order_no)+')"><div class="card-header"><span class="card-title">'+esc(w.title)+'</span><span class="status-badge '+sb+'">'+(SM[w.status]||esc(w.status))+'</span></div><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div><div class="card-sub">'+esc(w.site_name)+'</div></div>';
+    html+='<div class="weui-card" onclick=\'openWoDetail('+JSON.stringify(w.order_no)+')\'><div class="card-header"><span class="card-title">'+esc(w.title)+'</span><span class="status-badge '+sb+'">'+(SM[w.status]||esc(w.status))+'</span></div><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div><div class="card-sub">'+esc(w.site_name)+'</div></div>';
   }
   document.getElementById('swipe-panel-0').innerHTML=html;
 }
@@ -872,11 +872,7 @@ function renderInspPlanPanel(){
   html+=_foldableSection('本月计划',monthList,'month');
   document.getElementById('swipe-panel-2').innerHTML=html
     ?'<div style="flex:1;overflow-y:auto;padding-bottom:0">'+html+'</div>'
-    +'<div style="flex-shrink:0;padding:8px 0;border-top:1px solid var(--divider);background:var(--bg-primary)">'
-    +'<button class="btn-primary" onclick="loadNewInspection()">+ 新建巡检计划</button></div>'
-    :'<div style="flex:1;overflow-y:auto;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text-tertiary)">暂无待处理巡检计划</div>'
-    +'<div style="flex-shrink:0;padding:8px 0;border-top:1px solid var(--divider);background:var(--bg-primary)">'
-    +'<button class="btn-primary" onclick="loadNewInspection()">+ 新建巡检计划</button></div>';
+    :'<div style="flex:1;overflow-y:auto;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text-tertiary)">暂无待处理巡检计划</div>';
 }
 function _foldableSection(label,list,stateKey){
   var open=_foldStates[stateKey]!==false; // 默认展开，除非用户主动折叠过
@@ -885,8 +881,7 @@ function _foldableSection(label,list,stateKey){
   html+='<span>'+label+' ('+list.length+')</span><span class="fold-arrow" style="transition:transform .2s;font-size:10px;color:var(--text-tertiary)'+(open?';transform:rotate(180deg)':'')+'">▼</span></div>';
   html+='<div class="fold-body" style="overflow:hidden;transition:max-height .3s ease'+(open?';max-height:2000px':';max-height:0')+'">';
   if(list.length)for(var j=0;j<Math.min(list.length,8);j++){
-    var p=list[j],pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
-    html+='<div class="weui-card" onclick="openInspItems('+p.id+')" style="margin-top:4px"><div class="card-header"><span class="card-title">'+esc(p.plan_name)+'</span><span class="status-badge '+(p.status==='in_progress'?'sb-process':'sb-pending')+'">'+(p.status==='in_progress'?'进行中':'待开始')+'</span></div><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div><div class="card-sub">'+esc(p.site_name)+' · '+(p.completed_items||0)+'/'+(p.total_items||0)+'项</div></div>';
+    html+=_renderPlanCard(list[j]).replace('iv-card','iv-card weui-card');
   }
   html+='</div></div>';
   return html;
@@ -958,7 +953,8 @@ async function showSiteDetail(sid){
   var dr=await af('/sites/'+sid);
   var ds=await af('/data/site/'+sid+'?limit=288');
   var inspT=await af('/inspections');
-  var siteInsp=inspT?inspT.filter(function(p){return p.site_id===sid}):[];
+  var plansData=inspT&&inspT.plans||[];
+  var siteInsp=plansData.filter(function(p){return p.site_id===sid||(p.sites&&p.sites.some(function(s){return s.id===sid}))});
   _siteDevices[sid]=dr&&dr.devices?dr.devices:[];
   _siteInspData[sid]=siteInsp;
   // Tab 0: Devices + Data
@@ -1017,23 +1013,53 @@ async function showSiteDetail(sid){
   document.getElementById('sd-panel-0').innerHTML=h0;
   // Render chart after DOM update
   setTimeout(function(){_renderDataChart()},100);
-  // Tab 1: Inspection Plans (scheme-based)
-  var h1='',schemes=[];try{schemes=await af('/sites/'+sid+'/schemes')||[]}catch(e){}
-  if(schemes.length){
-    for(var sc=0;sc<schemes.length;sc++){
-      var scm=schemes[sc],label={'daily':'日','weekly':'周','monthly':'月'}[scm.period]||esc(scm.period);
-      h1+='<div class="sd-card"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:14px;font-weight:500">'+label+'巡检方案 · '+scm.item_count+'项</div><button class="btn-sm" style="background:var(--info);color:#fff" onclick="editSchemeItems('+scm.id+','+JSON.stringify(scm.period)+','+JSON.stringify(sid)+')">修改方案</button></div></div>';
+  // Tab 1: Site Archive
+  var h1='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:10px">基础信息</div>';
+  h1+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">';
+  h1+='<div><span style="color:var(--text-tertiary)">编码</span><br>'+esc(s.code||'-')+'</div>';
+  h1+='<div><span style="color:var(--text-tertiary)">类型</span><br>'+esc(s.site_type||'-')+'</div>';
+  h1+='<div><span style="color:var(--text-tertiary)">行政区</span><br>'+esc(s.district||'-')+'</div>';
+  h1+='<div><span style="color:var(--text-tertiary)">负责人</span><br>'+esc(s.manager||'-')+'</div>';
+  h1+='<div><span style="color:var(--text-tertiary)">经度</span><br>'+(s.lng?s.lng.toFixed(4):'-')+'</div>';
+  h1+='<div><span style="color:var(--text-tertiary)">纬度</span><br>'+(s.lat?s.lat.toFixed(4):'-')+'</div>';
+  h1+='</div>';
+  if(s.address)h1+='<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">地址: '+esc(s.address)+'</div>';
+  h1+='</div>';
+  // 最近告警
+  var siteAlerts=allAlerts.filter(function(a){return a.site_id===sid}).slice(0,5);
+  h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:8px">最近告警</div>';
+  if(siteAlerts.length){
+    for(var i=0;i<siteAlerts.length;i++){
+      var a=siteAlerts[i],lev=a.level==='red'?'danger':'warn',levCn={red:'紧急',orange:'重要',yellow:'一般'}[a.level]||a.level;
+      h1+='<div style="font-size:12px;padding:4px 0;display:flex;gap:6px"><span class="status-badge sb-'+lev+'">'+levCn+'</span><span style="flex:1;color:var(--text-primary)">'+esc(a.message)+'</span></div>';
     }
-  }else{
-    h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:8px">巡检方案</div><div class="empty" style="padding:10px;font-size:12px">还未配置方案<br><span style="color:var(--text-tertiary)">请在PC端导入或配置巡检方案</span></div></div>';
-  }
-  // Show recent inspection plans
-  h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:10px">最近巡检记录</div>';
+  }else h1+='<div style="font-size:12px;color:var(--text-tertiary)">暂无告警记录</div>';
+  h1+='</div>';
+  // 最近巡检
+  h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:8px">最近巡检</div>';
   if(siteInsp.length){siteInsp.sort(function(a,b){return (b.start_date||'')>(a.start_date||'')?1:-1});
-    for(var i=0;i<Math.min(siteInsp.length,5);i++){var p=siteInsp[i],pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
-      h1+='<div class="insp-record" onclick="openInspItems('+p.id+')"><div style="font-weight:500;color:var(--text-primary)">'+esc(p.plan_name)+'</div><div style="color:var(--text-tertiary);font-size:11px">'+esc(p.start_date||'')+' ~ '+esc(p.end_date||'')+'</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="progress-bar" style="flex:1;height:4px"><div class="progress-fill" style="width:'+pct+'%;height:4px"></div></div><span style="font-size:10px;color:var(--brand)">'+(p.completed_items||0)+'/'+(p.total_items||0)+'项</span></div></div>'}
-  }else h1+='<div class="empty" style="padding:10px">暂无巡检记录</div>';
-  h1+='</div>';document.getElementById('sd-panel-1').innerHTML=h1;
+    for(var i=0;i<Math.min(siteInsp.length,3);i++){var p=siteInsp[i];
+      h1+='<div class="insp-record" style="font-size:12px;padding:4px 0;cursor:pointer" onclick="openInspItems('+p.id+')"><span style="color:var(--text-primary)">'+esc(p.plan_name)+'</span><span style="color:var(--text-tertiary);float:right">'+(p.start_date||'').substring(5)+'</span></div>'}
+  }else h1+='<div style="font-size:12px;color:var(--text-tertiary)">暂无巡检记录</div>';
+  h1+='</div>';
+  // 设备更换与备件更换记录
+  try{var allRecycle=await af('/device-recycle')||[];var devRecycle=allRecycle.filter(function(r){return r.site_id===sid})}catch(e){var devRecycle=[]}
+  try{var allParts=await af('/parts/requests')||[];var partsReq=allParts.filter(function(r){return r.site_id===sid})}catch(e){var partsReq=[]}
+  if(devRecycle.length){
+    h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:8px">设备更换记录</div>';
+    devRecycle.slice(0,5).forEach(function(r){
+      h1+='<div style="font-size:12px;padding:4px 0">'+esc(r.device_name||r.device_code||'')+' - '+(r.recycle_date||r.created_at||'').substring(0,10)+'</div>';
+    });
+    h1+='</div>';
+  }
+  if(partsReq.length){
+    h1+='<div class="sd-card"><div style="font-size:14px;font-weight:500;margin-bottom:8px">备件更换记录</div>';
+    partsReq.slice(0,5).forEach(function(r){
+      h1+='<div style="font-size:12px;padding:4px 0">'+esc(r.part_name||r.name||'')+' x'+(r.quantity||1)+' - '+(r.created_at||'').substring(0,10)+'</div>';
+    });
+    h1+='</div>';
+  }
+  document.getElementById('sd-panel-1').innerHTML=h1;
 }
 function switchSdTab(i){
   document.querySelectorAll('.sd-subtab').forEach(function(e){e.classList.remove('active')});
@@ -1219,6 +1245,7 @@ async function openWoDetail(orderNo){
   currentOrderNo=orderNo;document.getElementById('wo-detail-title').textContent='工单 '+orderNo;
   document.getElementById('wo-detail').classList.add('open');
   document.getElementById('wo-detail-body').innerHTML='<div class="loading">加载中...</div>';
+  try{
   var w=allWO.find(function(x){return x.order_no===orderNo});if(!w){document.getElementById('wo-detail-body').innerHTML='<div class="empty">工单不存在</div>';return}
   var s=w.status||'pending',pct=WO_PCT[s]||0,sb=SB_CLASS[s]||'sb-pending';
   var html='<div class="iv-card"><div style="font-size:10px;color:var(--brand);font-family:monospace">'+esc(w.order_no)+'</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin:6px 0">'+esc(w.title)+'</div>';
@@ -1247,6 +1274,7 @@ async function openWoDetail(orderNo){
         html+='</div>';
       }
     }
+  }catch(e2){}
   }catch(e){}
   html+='</div>';document.getElementById('wo-detail-body').innerHTML=html;
 }
@@ -1344,9 +1372,10 @@ function _backFromWODetail(){
 var _inspFilterTab='pending',_inspFilterKw='',_inspFilterSite='';
 async function loadInspections(){
   _inspListMode=false;
+  _inspEntrySource='home';
   document.getElementById('insp-title').textContent='巡检清单';
   document.getElementById('insp-checklist').classList.add('open');
-  var plans=await af('/inspections');allInsp=plans||[];
+  var d2=await af('/inspections');allInsp=d2&&d2.plans||[];
   // Render static filter bar once
   document.getElementById('insp-checklist-body').innerHTML=
     '<div id="insp-filter-bar" style="display:flex;gap:6px;margin-bottom:10px;position:sticky;top:0;background:var(--bg-primary);z-index:1;padding:4px 0">'
@@ -1371,13 +1400,47 @@ async function loadInspections(){
   _inspFilterKw='';_inspFilterSite='';_inspFilterTab='pending';
   _renderInspList();
 }
+function _renderPlanCard(p){
+  var pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
+  var statusCn=p.status==='completed'?'已完成':p.status==='in_progress'?'进行中':'待开始';
+  var sc=p.status==='completed'?'sb-done':p.status==='in_progress'?'sb-process':'sb-pending';
+  // 站点摘要：取 sites 数组（兼容单站点 fallback 到 site_name）
+  var sites=p.sites||[];
+  var siteNames=sites.map(function(s){return s.site_name||s.name||''}).filter(function(s){return s});
+  var siteSummary=siteNames.length>0?siteNames.slice(0,3).join('、')+(siteNames.length>3?'等'+siteNames.length+'站':''):(p.site_name||'');
+  // 责任人（取第一个站点）
+  var assignee='';
+  if(sites.length&&sites[0].assignee)assignee=sites[0].assignee;
+  if(!assignee)assignee=p.assignee||'--';
+  // 日期范围
+  var dateStr='';
+  if(p.start_date){dateStr=p.start_date.substring(5)+(p.end_date?('~'+p.end_date.substring(5)):'')}
+  // 导航（仅单站点有经纬度）
+  var navHtml='';
+  if(sites.length===1&&sites[0].lat&&sites[0].lng){
+    var lat=sites[0].lat,lng=sites[0].lng,siteName=esc(siteSummary);
+    navHtml='<span style="font-size:10px;color:var(--info);cursor:pointer" onclick="event.stopPropagation();openMap('+lat+','+lng+',\''+siteName+'\')">导航</span>';
+  }
+  var html='<div class="iv-card" onclick="openInspItems('+p.id+')">'
+    +'<div class="card-header"><span class="card-title">'+esc(p.plan_name)+'</span><span class="status-badge '+sc+'">'+statusCn+'</span></div>'
+    +'<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">'+esc(siteSummary)+'</div>'
+    +(dateStr?'<div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px">'+esc(dateStr)+'</div>':'')
+    +'<div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">责任人: '+esc(assignee)+'</div>'
+    +(p.total_items?'<div class="progress-wrap" style="margin-bottom:2px"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div>':'')
+    +'<div class="card-sub" style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary)">'
+    +'<span>'+(p.completed_items||0)+'/'+(p.total_items||0)+'项</span>'
+    +navHtml
+    +'</div>'
+  +'</div>';
+  return html;
+}
 function _renderInspList(){
   var kw=_inspFilterKw.toLowerCase(),type=_inspFilterSite,tab=_inspFilterTab;
   var filtered=allInsp.filter(function(p){
     var match=true;
     if(tab==='pending'&&p.status==='completed')match=false;
     if(tab==='history'&&p.status!=='completed')match=false;
-    if(kw&&(p.plan_name||'').toLowerCase().indexOf(kw)<0&&(p.site_name||'').toLowerCase().indexOf(kw)<0)match=false;
+    if(kw&&(p.plan_name||'').toLowerCase().indexOf(kw)<0)match=false;
     if(type&&p.type!==type)match=false;
     return match;
   });
@@ -1386,8 +1449,7 @@ function _renderInspList(){
   if(!filtered.length){html='<div class="empty">'+(tab==='pending'?'暂无待处理计划':'暂无历史记录')+'</div>'}
   else{
     for(var i=0;i<Math.min(filtered.length,30);i++){
-      var p=filtered[i],pct=p.total_items?Math.round((p.completed_items||0)/p.total_items*100):0;
-      html+='<div class="iv-card" onclick="openInspItems('+p.id+')"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+esc(p.plan_name)+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+esc(p.site_name)+' · '+(p.completed_items||0)+'/'+(p.total_items||0)+'项 · '+(p.start_date||'').substring(5)+'</div></div>';
+      html+=_renderPlanCard(filtered[i]);
     }
   }
   document.getElementById('insp-list').innerHTML=html;
@@ -1401,13 +1463,51 @@ function _switchInspTab(tab){
 }
 async function openInspItems(pid){
   var plan=allInsp.find(function(x){return x.id===pid});if(!plan)return;
-  _currentInspSiteId=plan.site_id;_currentInspSiteName=plan.site_name||''; // 保存站点信息用于转工单
-  document.getElementById('insp-checklist').classList.add('open');  // <-- 打开面板
-  document.getElementById('insp-title').textContent=(plan.site_name||'')+' · 检查项';
+  var sites=plan.sites||[];
+  _currentInspSiteId=plan.site_id||(sites.length?sites[0].id:null);
+  _currentInspSiteName=plan.site_name||(sites.length?sites[0].site_name||sites[0].name:'');
+  // 如果没有记录过"从哪来"，根据当前页面判断
+  if(!_inspListMode){
+    var homePage=document.getElementById('page-home');
+    _inspEntrySource=(homePage&&homePage.classList.contains('active'))?'home':'panel';
+  }
+  document.getElementById('insp-checklist').classList.add('open');
+  document.getElementById('insp-title').textContent=esc(plan.plan_name||'巡检检查')+' · 检查项';
   _inspListMode=true;
   var tasks=await af('/inspections/'+pid+'/tasks');inspData[pid]=tasks||[];
-  var html='<div class="iv-card"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+esc(plan.plan_name)+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+esc(plan.site_name)+'</div></div>';
-  if(tasks){for(var i=0;i<tasks.length;i++){var t=tasks[i],done=!!t.result,isAb=t.result==='abnormal';html+='<div class="iv-card" id="ck-item-'+t.id+'" style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;background:'+(done?(isAb?'var(--danger)':'var(--brand)'):'var(--bg-primary)')+'">'+(done?(isAb?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:10px;height:10px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>'):(i+1))+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--text-primary)">'+esc(t.check_item)+'</div>'+(t.remark?'<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">备注: '+esc(t.remark)+'</div>':'')+'</div>'+(done?('<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end"><span style="font-size:11px;white-space:nowrap;color:'+(isAb?'var(--danger)':'var(--brand)')+'">'+(isAb?'异常':'正常')+'</span>'+(isAb?'<button class="btn-sm" style="background:var(--danger-bg);color:var(--danger);font-size:11px;padding:4px 8px" onclick="event.stopPropagation();_createWOFromInspection('+t.id+','+plan.site_id+','+JSON.stringify(t.check_item)+','+JSON.stringify(plan.site_name||'')+')"><span class="i i-sm" style="margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>转工单</button>':'')+'</div>'):'<div style="display:flex;gap:4px;flex-shrink:0"><button class="btn-sm" style="background:var(--brand-light);color:var(--brand)" onclick="checkItem('+t.id+',\'normal\',\''+t.check_item.replace(/'/g,"\\'")+'\')">正常</button><button class="btn-sm" style="background:var(--danger-bg);color:var(--danger)" onclick="checkItem('+t.id+',\'abnormal\',\''+t.check_item.replace(/'/g,"\\'")+'\')">异常</button></div>')+'</div>'}
+  var siteNames={};
+  if(plan.sites){plan.sites.forEach(function(s){siteNames[s.id]=s.site_name||s.name||'站'+s.id})}
+  var html='<div class="iv-card"><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+esc(plan.plan_name)+'</div><div style="font-size:11px;color:var(--text-tertiary)">'+(sites.length?sites.map(function(s){return esc(s.site_name||s.name)}).join('、'):esc(plan.site_name||''))+'</div></div>';
+  if(tasks){
+    var siteGroups={};
+    tasks.forEach(function(t){var sid=t.site_id||0;if(!siteGroups[sid])siteGroups[sid]={siteName:siteNames[sid]||'站'+sid,items:[]};siteGroups[sid].items.push(t)});
+    var idx=0;
+    Object.keys(siteGroups).forEach(function(sid){
+      var g=siteGroups[sid];
+      if(Object.keys(siteGroups).length>1)html+='<div style="font-size:12px;font-weight:500;color:var(--text-secondary);padding:8px 0 4px">'+esc(g.siteName)+'</div>';
+      g.items.forEach(function(t){
+        var done=!!t.result,isAb=t.result==='abnormal';
+        var thisSiteId=t.site_id||plan.site_id||0;
+        var statusBg=done?(isAb?'var(--danger)':'var(--brand)'):'var(--bg-primary)';
+        var statusIcon=done?(isAb?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:10px;height:10px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>'):(++idx);
+        var btns='';
+        if(done){
+          btns='<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end">'
+            +'<span style="font-size:11px;white-space:nowrap;color:'+(isAb?'var(--danger)':'var(--brand)')+'">'+(isAb?'异常':'正常')+'</span>'
+            +(isAb?'<button class="btn-sm" style="background:var(--danger-bg);color:var(--danger);font-size:11px;padding:4px 8px" onclick="event.stopPropagation();_createWOFromInspection('+t.id+','+thisSiteId+','+JSON.stringify(t.check_item)+','+JSON.stringify(g.siteName)+')"><span class="i i-sm" style="margin-right:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>转工单</button>':'')
+            +'</div>';
+        }else{
+          btns='<div style="display:flex;gap:4px;flex-shrink:0"><button class="btn-sm" style="background:var(--brand-light);color:var(--brand);font-size:11px;padding:4px 8px;border:none;cursor:pointer" onclick="event.stopPropagation();checkItem('+t.id+',\'normal\',\''+esc(t.check_item).replace(/\'/g,"\\'")+'\')">正常</button><button class="btn-sm" style="background:var(--danger-bg);color:var(--danger);font-size:11px;padding:4px 8px;border:none;cursor:pointer" onclick="event.stopPropagation();checkItem('+t.id+',\'abnormal\',\''+esc(t.check_item).replace(/\'/g,"\\'")+'\')">异常</button></div>';
+        }
+        var textStyle='font-size:13px;color:var(--text-primary);white-space:normal;word-break:keep-all';
+        var remarkHtml=t.remark?'<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;white-space:normal;word-break:keep-all">备注: '+esc(t.remark)+'</div>':'';
+        html+='<div class="iv-card" id="ck-item-'+t.id+'" style="display:flex;align-items:center;gap:10px;overflow-wrap:normal">'
+          +'<span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;background:'+statusBg+'">'+statusIcon+'</span>'
+          +'<div style="flex:1;min-width:0;max-width:100%"><div style="'+textStyle+'">'+esc(t.check_item)+'</div>'+remarkHtml+'</div>'
+          +btns
+          +'</div>';
+      });
+    });
   }
   document.getElementById('insp-checklist-body').innerHTML=html;
   // 提示操作指引
@@ -1639,6 +1739,7 @@ async function _loadNewInspForm(siteId){
     +'<input id="ni-site-search" placeholder="搜索站点名称..." oninput="filterNiSites()" style="margin-bottom:6px">'
     +'<select id="ni-site" style="max-height:150px" onchange="loadNiSchemes()"></select></div>'
     +'<div id="ni-schemes" style="margin-bottom:12px"></div>'
+    +'<div class="form-group"><label>分类</label><select id="ni-cat" style="width:100%;padding:8px;border:1px solid var(--divider);border-radius:6px;font-size:13px;background:var(--bg-card);color:var(--text-primary)"><option value="">选择分类</option><option value="站院环境">站院环境</option><option value="断面环境">断面环境</option><option value="水位观测">水位观测</option><option value="雨量监测">雨量监测</option><option value="蒸发监测">蒸发监测</option><option value="墒情监测">墒情监测</option><option value="设施设备">设施设备</option><option value="缆道系统">缆道系统</option><option value="安全防护">安全防护</option><option value="发电机">发电机</option></select></div>'
     +'<div class="form-group"><label>备注</label><textarea id="ni-remark" placeholder="其他说明（可选）" style="height:48px"></textarea></div>';
   html+='</div><div style="position:sticky;bottom:0;background:var(--bg-primary);padding:var(--space-md);border-top:1px solid var(--divider)"><button class="btn-primary" onclick="submitNewInspection()" style="width:100%">提交计划</button></div>';
   document.getElementById("new-inspection-body").innerHTML=html;
@@ -1698,7 +1799,7 @@ async function submitNewInspection(){
   var endDate=today; // default same day
   if(period==='weekly'){var d=new Date();d.setDate(d.getDate()+7-d.getDay());endDate=d.toISOString().substring(0,10)}
   else if(period==='monthly'){var d=new Date();d.setMonth(d.getMonth()+1);d.setDate(0);endDate=d.toISOString().substring(0,10)}
-  var payload={plan_name:(period==='daily'?'日':period==='weekly'?'周':'月')+'巡检计划',site_id:sid,type:period,start_date:today,end_date:endDate,period:period};
+  var payload={plan_name:(period==='daily'?'日':period==='weekly'?'周':'月')+'巡检计划',site_id:sid,type:period,start_date:today,end_date:endDate,period:period,category:(document.getElementById('ni-cat')||{}).value||''};
   if(schemeId)payload.scheme_id=schemeId;
   if(schemeId){
     try{var scm=await af('/schemes/'+schemeId);if(scm&&scm.items)payload.check_items=scm.items.map(function(x){return x.check_item})}catch(e){}
@@ -1901,12 +2002,14 @@ function toggleManual(idx){
 
 // ===== Inline View Management =====
 var _inspListMode=false;
-var _currentInspSiteId=null,_currentInspSiteName=''; // 用于异常转工单
+var _currentInspSiteId=null,_currentInspSiteName='';
+var _inspEntrySource='home'; // 'home' | 'panel' - 从哪进的详情，返回时就回哪
 function closeInspList(){
   if(_inspListMode){
     _inspListMode=false;
-    // 返回：重新加载列表并恢复标题
-    loadInspections();
+    closeView('insp-checklist');
+    // 从哪进回哪
+    if(_inspEntrySource==='home')swipeTo(0);
   } else {
     closeView('insp-checklist');
   }
@@ -2004,6 +2107,177 @@ function _renderDataChart(){
   }catch(e){console.error('Chart render error:',e);_showChartMsg(cvs,'图表渲染失败')}
 }
 function _showChartMsg(cvs,msg){if(cvs.parentNode)cvs.parentNode.innerHTML='<div class="empty" style="padding:20px;font-size:12px;color:var(--text-tertiary)">'+msg+'</div>'}
+
+// ========== 移动端巡检 ==========
+var _mobileInspList=[],_mobileInspTab='today';
+function switchInspMobileTab(tab){
+  _mobileInspTab=tab;
+  document.querySelectorAll('#page-inspection .seg-item').forEach(function(e){e.classList.remove('active')});
+  var el=document.getElementById('ins-tab-'+tab);
+  if(el)el.classList.add('active');
+  loadInspMobileList();
+}
+async function loadInspMobileList(){
+  var wrap=document.getElementById('insp-list-wrap');if(!wrap)return;
+  wrap.innerHTML='<div class="loading">加载中...</div>';
+  try{
+    var resp=await af('/inspections')||{plans:[]};
+    var plans=resp.plans||[];
+    var now=new Date();
+    var today=now.toISOString().substring(0,10);
+    var thisMonth=today.substring(0,7);
+    
+    var filtered=[];
+    if(_mobileInspTab==='today'){
+      filtered=plans.filter(function(p){return p.start_date<=today&&p.end_date>=today});
+    }else if(_mobileInspTab==='month'){
+      filtered=plans.filter(function(p){return(p.start_date||'').substring(0,7)===thisMonth||(p.end_date||'').substring(0,7)===thisMonth});
+    }else{
+      filtered=plans.filter(function(p){return p.status==='completed'}).slice(0,50);
+    }
+    _mobileInspList=filtered;
+    
+    if(!filtered.length){
+      wrap.innerHTML='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px;color:var(--text-tertiary)">&#x1F4CB;</div><div style="font-size:14px;color:var(--text-secondary);margin-bottom:4px">暂无巡检任务</div><div style="font-size:12px;color:var(--text-tertiary)">点击下方"生成巡检计划"创建</div></div>';
+      return;
+    }
+    // 按站点类型分组
+    var groups={};
+    filtered.forEach(function(p){
+      var cat=p.site_cat||'其他';
+      if(!groups[cat])groups[cat]={items:[],total:0,completed:0};
+      groups[cat].items.push(p);
+      groups[cat].total++;
+      if(p.status==='completed')groups[cat].completed++;
+    });
+    var html='';
+    Object.keys(groups).sort().forEach(function(cat){
+      var g=groups[cat];
+      html+='<div style="font-size:13px;font-weight:500;color:var(--text-secondary);padding:8px 0 4px">'+cat+' <span style="font-size:11px;color:var(--text-tertiary)">'+g.completed+'/'+g.total+'</span></div>';
+      g.items.slice(0,10).forEach(function(p){
+        html+=_renderPlanCard(p).replace('iv-card','iv-card weui-card');
+      });
+      if(g.items.length>10)html+='<div style="text-align:center;padding:4px;font-size:11px;color:var(--text-tertiary)">还有 '+(g.items.length-10)+' 项...</div>';
+    });
+    wrap.innerHTML=html;
+  }catch(e){wrap.innerHTML='<div class="empty" style="padding:40px;font-size:12px;color:var(--danger)">加载失败: '+e.message+'</div>'}
+}
+
+async function showInspMobileDetail(planId){
+  var tasks=await af('/inspections/'+planId+'/tasks');if(!tasks)return;
+  var plan=_mobileInspList.find(function(p){return p.id===planId});
+  if(!plan)return;
+  var totalItems=plan.total_items||tasks.length;
+  var completedItems=tasks.filter(function(t){return t.result!==null}).length;
+  var pct=totalItems?Math.round(completedItems/totalItems*100):0;
+  
+  // 按频次分组
+  var freqCn={'high':'必做','mid':'月度','low':'季度','annual':'年度'};
+  var freqCl={'high':'#07C160','mid':'#10aeff','low':'#ff9800','annual':'#fa5151'};
+  // 从计划本身推断频次（简化处理）
+  // 站点摘要
+  var sites=plan.sites||[];
+  var siteNames=sites.map(function(s){return s.site_name||s.name||''}).filter(function(s){return s});
+  var siteSummary=siteNames.length>0?siteNames.join('、'):(plan.site_name||'');
+  var tasksHtml='<div style="margin-bottom:12px"><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">'+esc(plan.plan_name||'')+'</div><div style="font-size:12px;color:var(--text-tertiary)">'+esc(siteSummary)+'</div></div>';
+  
+  // 进度条
+  tasksHtml+='<div class="progress-wrap" style="margin-bottom:12px"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div>';
+  
+  // 照片区域（分类型照片框）
+  tasksHtml+='<div style="margin-bottom:12px;padding:10px;background:var(--bg-primary);border-radius:var(--radius-md)"><div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px">现场照片</div>'
+    +'<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none">'
+    +'<div style="flex-shrink:0;width:80px;height:80px;border:1.5px dashed var(--border-color);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);cursor:pointer;background:var(--bg-card)" onclick="alert(\'拍照: 站房全景\')"><span style="font-size:24px;color:var(--text-tertiary)">+</span><span>全景</span></div>'
+    +'<div style="flex-shrink:0;width:80px;height:80px;border:1.5px dashed var(--border-color);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);cursor:pointer;background:var(--bg-card)" onclick="alert(\'拍照: 设备整体\')"><span style="font-size:24px;color:var(--text-tertiary)">+</span><span>设备</span></div>'
+    +'<div style="flex-shrink:0;width:80px;height:80px;border:1.5px dashed var(--border-color);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);cursor:pointer;background:var(--bg-card)" onclick="alert(\'拍照: 设备铭牌\')"><span style="font-size:24px;color:var(--text-tertiary)">+</span><span>铭牌</span></div>'
+    +'</div></div>';
+  
+  // 检查项列表
+  tasksHtml+='<div style="margin-bottom:8px;font-size:12px;font-weight:500;color:var(--text-secondary)">检查项（'+completedItems+'/'+totalItems+'）</div>';
+  
+  // 一键通过按钮
+  var allNormal=tasks.every(function(t){return t.result==='normal'});
+  tasksHtml+='<div style="margin-bottom:12px"><button class="btn-primary" style="width:100%;padding:12px 0;border:none;border-radius:var(--radius-md);background:var(--brand);color:#fff;font-size:15px;font-weight:600;cursor:pointer" onclick="mobileInspOneClick('+planId+')">'+(allNormal?'全部正常，一键通过':'标记全部完成')+'</button></div>';
+  
+  tasksHtml+='<div style="border-top:.5px solid var(--divider)">';
+  // 按 site_id 分组
+  var siteGroups={};
+  tasks.forEach(function(t){
+    var sid=t.site_id||0;
+    if(!siteGroups[sid])siteGroups[sid]={siteName:'',items:[]};
+    siteGroups[sid].items.push(t);
+  });
+  // 查找站点名
+  tasks.forEach(function(t){
+    var sid=t.site_id||0;
+    if(siteGroups[sid]&&!siteGroups[sid].siteName){
+      var foundS='';
+      if(plan.sites){var fs=plan.sites.find(function(s){return s.id===sid});if(fs)foundS=fs.site_name||fs.name||''}
+      if(!foundS)foundS='站'+sid;
+      siteGroups[sid].siteName=foundS;
+    }
+  });
+  Object.keys(siteGroups).forEach(function(sid){
+    var g=siteGroups[sid];
+    var gDone=g.items.filter(function(t){return t.result!==null}).length;
+    tasksHtml+='<div style="font-size:12px;font-weight:500;color:var(--text-secondary);padding:8px 0 4px;margin-top:4px;border-top:.5px solid var(--divider)">'+esc(g.siteName)+' <span style="font-size:10px;color:var(--text-tertiary)">'+gDone+'/'+g.items.length+'</span></div>';
+    g.items.forEach(function(t){
+      var done=t.result!==null;
+      var icon=done?'<span style="color:var(--brand)">&#x2713;</span>':'<span style="color:var(--text-tertiary)">&#x25CB;</span>';
+      var resultCn=t.result==='normal'?'正常':t.result==='abnormal'?'异常':'';
+      var ops='';
+      if(!done){
+        ops='<button style="padding:4px 12px;border:none;border-radius:12px;font-size:11px;background:var(--brand-light);color:var(--brand);cursor:pointer" onclick="mobileInspMarkTask('+t.id+','+planId+',\'normal\')">正常</button>'
+          +'<button style="padding:4px 12px;border:none;border-radius:12px;font-size:11px;background:var(--danger-bg);color:var(--danger);cursor:pointer;margin-left:4px" onclick="mobileInspMarkTask('+t.id+','+planId+',\'abnormal\')">异常</button>';
+      }else{
+        ops='<span style="font-size:11px;color:'+(t.result==='normal'?'var(--brand)':'var(--danger)')+'">'+resultCn+'</span>';
+      }
+      tasksHtml+='<div style="display:flex;align-items:center;gap:var(--space-sm);padding:10px 0;border-bottom:.5px solid var(--divider);overflow-wrap:normal">'
+        +'<span style="width:18px;text-align:center;font-size:14px;flex-shrink:0">'+icon+'</span>'
+        +'<div style="flex:1;font-size:13px;color:var(--text-primary);word-break:keep-all;white-space:normal">'+esc(t.check_item||'')+'</div>'
+        +'<span style="display:flex;gap:4px;align-items:center;flex-shrink:0">'+ops+'</span></div>';
+    });
+  });
+  tasksHtml+='</div>';
+  
+  // 弹出模态
+  showBottomSheet(tasksHtml);
+}
+function showBottomSheet(html){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:300;display:flex;align-items:flex-end;justify-content:center';
+  var sheet=document.createElement('div');
+  sheet.style.cssText='background:var(--bg-primary);width:375px;max-width:100vw;max-height:85vh;border-radius:16px 16px 0 0;padding:20px 16px;overflow-y:auto;position:relative;scrollbar-width:none';
+  sheet.innerHTML=html+'<div style="text-align:center;margin-top:16px;padding-top:12px;border-top:.5px solid var(--divider)"><button style="padding:8px 24px;border:none;border-radius:18px;font-size:13px;background:var(--bg-card);color:var(--text-secondary);cursor:pointer" onclick="closeBottomSheet(this)">关闭</button></div>';
+  overlay.appendChild(sheet);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
+  document.body.appendChild(overlay);
+}
+function closeBottomSheet(el){
+  var overlay=el.closest('[style*=\"z-index:300\"]');
+  if(overlay)overlay.remove();
+}
+async function mobileInspMarkTask(taskId,planId,result){
+  var r=await afP('/inspections/tasks/'+taskId,{result:result,check_time:new Date().toISOString()});
+  if(r&&r.success){showToast('已标记','success');document.querySelectorAll('[style*=\"z-index:300\"]').forEach(function(e){e.remove()});showInspMobileDetail(planId)}else{showToast('操作失败','error')}
+}
+async function mobileInspOneClick(planId){
+  if(!confirm('确认全部正常并完成？'))return;
+  var tasks=await af('/inspections/'+planId+'/tasks');if(!tasks)return;
+  for(var i=0;i<tasks.length;i++){
+    if(!tasks[i].result){
+      await afP('/inspections/tasks/'+tasks[i].id,{result:'normal',remark:'一键通过',check_time:new Date().toISOString()});
+    }
+  }
+  showToast('已全部标记完成','success');
+  openInspItems(planId);
+  renderInspPlanPanel();
+}
+function openMap(lat,lng,name){
+  if(!lat||!lng)return;
+  var url='https://uri.amap.com/marker?position='+lng+','+lat+'&name='+encodeURIComponent(name);
+  window.open(url,'_blank');
+}
 
 // ===== Startup =====
 (async function(){updateDateTime();var ok=await checkAuth();if(ok){init()}})();

@@ -250,6 +250,14 @@ def init_db():
                 FOREIGN KEY (site_id) REFERENCES sites(id)
             );
 
+            CREATE TABLE IF NOT EXISTS plan_sites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id INTEGER NOT NULL,
+                site_id INTEGER NOT NULL,
+                FOREIGN KEY (plan_id) REFERENCES inspection_plans(id),
+                FOREIGN KEY (site_id) REFERENCES sites(id)
+            );
+
             CREATE TABLE IF NOT EXISTS hotline_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 caller_name TEXT,
@@ -274,6 +282,25 @@ def init_db():
                 voltage REAL DEFAULT 0,
                 last_data_time TEXT,
                 FOREIGN KEY (site_id) REFERENCES sites(id)
+            );
+
+            -- 设备回收记录表
+            CREATE TABLE IF NOT EXISTS device_recycle (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id INTEGER NOT NULL,
+                device_code TEXT NOT NULL,
+                device_name TEXT NOT NULL,
+                device_type TEXT,
+                site_id INTEGER,
+                site_name TEXT,
+                recycle_date TEXT NOT NULL,
+                reason TEXT DEFAULT '',
+                destination TEXT DEFAULT '',
+                operator TEXT DEFAULT '',
+                remark TEXT DEFAULT '',
+                status TEXT DEFAULT 'recycled',
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (device_id) REFERENCES device_shadows(id)
             );
 
             -- 天气数据表 (新增)
@@ -358,6 +385,19 @@ def init_db():
                 created_at TEXT DEFAULT (datetime('now','localtime'))
             );
 
+            -- 通知表（巡检计划通知、工单通知等实时消息）
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                source_type TEXT NOT NULL,
+                source_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT DEFAULT '',
+                is_read INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+
             -- 用户表（登录系统）
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -416,6 +456,45 @@ def init_db():
                 FOREIGN KEY (site_id) REFERENCES sites(id)
             );
 
+            -- 校准模板（用于移动端设备校验多字段表单）
+            CREATE TABLE IF NOT EXISTS calibration_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_type TEXT NOT NULL,
+                template_name TEXT NOT NULL,
+                fields TEXT NOT NULL,
+                calculations TEXT,
+                thresholds TEXT,
+                category TEXT DEFAULT '',
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            );
+
+            -- 巡检跳过记录
+            CREATE TABLE IF NOT EXISTS inspection_skip_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id INTEGER NOT NULL,
+                task_id INTEGER,
+                site_id INTEGER NOT NULL,
+                check_item TEXT NOT NULL,
+                reason TEXT DEFAULT '',
+                skip_type TEXT DEFAULT 'user',
+                skip_count INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (plan_id) REFERENCES inspection_plans(id),
+                FOREIGN KEY (site_id) REFERENCES sites(id)
+            );
+
+            -- 巡检照片类型配置
+            CREATE TABLE IF NOT EXISTS inspection_photo_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id INTEGER,
+                site_type TEXT DEFAULT '',
+                photo_type TEXT NOT NULL,
+                label TEXT NOT NULL,
+                min_count INTEGER DEFAULT 1,
+                sort_order INTEGER DEFAULT 0
+            );
+
             -- 备件申请表
             CREATE TABLE IF NOT EXISTS spare_part_requests (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -465,11 +544,28 @@ def init_db():
             "ALTER TABLE inspection_plans ADD COLUMN description TEXT DEFAULT ''",
             "ALTER TABLE inspection_plans ADD COLUMN scheme_id INTEGER",
             "ALTER TABLE device_shadows ADD COLUMN voltage REAL DEFAULT 0",
+            # 移动巡检方案相关字段
+            "ALTER TABLE inspection_scheme_items ADD COLUMN frequency_level TEXT DEFAULT 'mid'",
+            "ALTER TABLE inspection_tasks ADD COLUMN photo_urls TEXT",
+            "ALTER TABLE inspection_tasks ADD COLUMN calibrator TEXT",
+            "ALTER TABLE inspection_tasks ADD COLUMN calibration_values TEXT",
+            "ALTER TABLE inspection_tasks ADD COLUMN photo_required INTEGER DEFAULT 1",
+            # 迁移 plan_sites 数据
         ]:
             try:
                 db.execute(col_sql)
             except:
                 pass
+        # 从 inspection_plans.site_id 迁移到 plan_sites
+        try:
+            existing = db.execute("SELECT COUNT(*) FROM plan_sites").fetchone()[0]
+            if existing == 0:
+                db.execute("""
+                    INSERT OR IGNORE INTO plan_sites (plan_id, site_id)
+                    SELECT id, site_id FROM inspection_plans WHERE site_id IS NOT NULL
+                """)
+        except Exception:
+            pass
         # 添加关键索引以支持大数据量查询
         for idx_sql in [
             "CREATE INDEX IF NOT EXISTS idx_sd_site_time ON sensor_data(site_id, recorded_at DESC)",
@@ -654,7 +750,7 @@ def seed_data():
         sample_ids = [r['id'] for r in db.execute("SELECT id FROM sites ORDER BY id LIMIT 5").fetchall()]
         orders = [
             (f'WO-20260618-{i+1:03d}', sample_ids[i] if i < len(sample_ids) else sample_ids[0],
-             'auto','设备故障','normal','水位计数据中断','设备持续30分钟无数据上报','', '张建国','dispatched','2026-06-18 16:00','2026-06-18 08:30') for i in range(5)
+             'auto','设备故障','normal','水位计数据中断','设备持续30分钟无数据上报','', '张建国','dispatched','2026-06-18 16:00','2026-06-18 08:30') for i in range(3)
         ]
         for o in orders:
             db.execute(
@@ -729,55 +825,217 @@ def seed_data():
         print("[Seed] Database seeded with initial data.")
 
 def seed_inspections():
-    """巡检种子数据（独立判断，可重复运行）"""
+    """巡检种子数据（依据《运维事项.pdf》内容分布，独立判断，可重复运行）"""
     with get_db() as db:
         cnt = db.execute("SELECT COUNT(*) FROM inspection_plans").fetchone()[0]
         if cnt == 0:
-                all_sites = db.execute("SELECT id, name, type FROM sites ORDER BY id").fetchall()
-                if len(all_sites) < 5: return
-                s = all_sites
-                insp_plans = [
-                    (f'{s[0]["name"]}日常巡检', s[0]['id'],'daily','2026-06-10','2026-06-10','completed'),
-                    (f'{s[0]["name"]}周巡检', s[0]['id'],'weekly','2026-06-08','2026-06-14','in_progress'),
-                    (f'{s[1]["name"]}日常巡检', s[1]['id'],'daily','2026-06-11','2026-06-11','pending'),
-                    (f'{s[2]["name"]}日常巡检', s[2]['id'],'daily','2026-06-10','2026-06-10','completed'),
-                    (f'{s[3]["name"]}周巡检', s[3]['id'],'weekly','2026-06-09','2026-06-15','in_progress'),
-                    (f'{s[4]["name"]}日常巡检', s[4]['id'],'daily','2026-06-11','2026-06-11','pending'),
-                    (f'{s[5]["name"] if len(s) > 5 else s[0]["name"]}日常巡检', s[5]['id'] if len(s) > 5 else s[0]['id'],'daily','2026-06-10','2026-06-10','completed'),
-                ]
-                insp_items_map = {
-                    'reservoir': ['坝体外观检查','溢洪道检查','放水设施检查','监测设备检查','防汛物资检查','管理设施检查'],
-                    'sluice': ['闸门启闭检查','电气设备检查','上下游检查','监测设备检查','管理设施检查'],
-                    'dike': ['堤身外观检查','堤脚检查','排水设施检查','监测设备检查'],
-                    'pump': ['机组运行检查','电气设备检查','管道阀门检查','自动化系统检查'],
-                    'water_supply': ['取水口检查','净化设备检查','加药系统检查','水质检测','管理设施检查'],
-                }
-                site_types = {s['id']: s['type'] for s in db.execute("SELECT id,type FROM sites").fetchall()}
-                for plan in insp_plans:
-                    pname, psid, ptype, pstart, pend, pstatus = plan
+            all_sites = db.execute("SELECT id, name, type FROM sites ORDER BY id").fetchall()
+            if len(all_sites) < 5: return
+            # 按站点类型分组
+            s_by_type = {}
+            for s in all_sites:
+                s_by_type.setdefault(s['type'], []).append(s)
+            now_str = datetime.now().strftime('%Y-%m-%d')
+
+            # ========== 计划定义 (依据运维事项.pdf) ==========
+            # 格式: (名称, 站点类型, 频次, 持续天数, 状态, 每类型选站数, 检查项列表)
+            plans = [
+                # ====== 水文站 (hydrology) ======
+                # 每日：水位日常观测（PDF：水位项目日常巡查-驻测站每日8时、18-20时）
+                ('水位日常观测', 'hydrology', 'daily', 1, 'in_progress', 4,
+                 ['观测基本水尺读数并记录', '校对遥测水位及时间', '检查清洗水尺', '水位设备无异常检查', '填记水位巡查表并拍照存档']),
+                # 每周：站院环境维护（PDF：驻测站站院环境维护-每周打扫）
+                ('站院环境维护', 'hydrology', 'weekly', 7, 'pending', 3,
+                 ['水位井打扫', '站院地面、窗台、设备清洁', '墙面天花板无污迹蜘蛛网', '草地灌木修剪打扫']),
+                # 每月：设施设备维护（PDF：设施设备维护-每月检查清洗水尺、爬梯、护栏）
+                ('设施设备检查', 'hydrology', 'monthly', 30, 'pending', 2,
+                 ['检查清洗水尺', '爬梯牢固度检查', '护栏牢固度检查', '设施设备巡查表填写', '异常维修拍照存档报中心站网监测科']),
+                # 每月：观测场管理（PDF：观测场管理-每月2次）
+                ('观测场管理', 'hydrology', 'monthly', 30, 'pending', 2,
+                 ['降蒸观测场草地维护', '站院草皮高度低于20cm', '杂草杂物清理']),
+                # 每月：断面环境管理（PDF：断面环境管理-每月断面检查清理）
+                ('断面环境管理', 'hydrology', 'monthly', 30, 'pending', 2,
+                 ['基本水尺码头清理淤泥杂草', '停船码头清理淤泥杂草', '流速仪测流断面清理', '基本水尺底部淤泥杂草清理']),
+                # 每月：安全检查（PDF：安全检查-每月一次）
+                ('安全检查', 'hydrology', 'monthly', 30, 'pending', 2,
+                 ['测验设施设备检查', '安全环境检查', '站房检查', '灭火器检查', '安全器材检查', '安全检查记录填记']),
+                # 每月：发电机保养（PDF：发电机保养及维护-每月1次检查）
+                ('发电机保养', 'hydrology', 'monthly', 30, 'pending', 1,
+                 ['检查机油', '检查线路及各部件', '发电运行不少于30分钟并记录', '汛前汛后更换机油保养维护', '备足燃料及机油']),
+                # 不定期(季度)：缆道日常巡检（PDF：缆道日常巡检-测流时）
+                ('缆道巡检', 'hydrology', 'quarterly', 90, 'pending', 2,
+                 ['行主索检查维护', '循环索检查维护', '拉线卡头检查', '工作索毛刺断骨检查拍照留底',
+                  '锚碇位移检查', '锚碇周围土壤裂纹崩塌检查', '导向轮游轮行车架运转检查', '绞车运转检查']),
+                # 每半年：综合检查
+                ('半年综合检查', 'hydrology', 'halfyear', 180, 'pending', 2,
+                 ['水文缆道全面检修', '备用电源充放电测试', '通信系统切换测试', '所有传感器校准']),
+                # 每年：年度大修（PDF：断面环境管理-每年汛前汛后全面清理 + 发电机-汛前汛后保养）
+                ('年度检修', 'hydrology', 'yearly', 365, 'completed', 1,
+                 ['汛前流速仪测流断面全面清理', '汛前缆道铁塔四周全面清理',
+                  '汛后断面全面清理', '发电机更换机油', '发电机各部件全面检查',
+                  '全站水文年鉴资料整编', '年度总结报告编制']),
+
+                # ====== 水位站 (water_level) ======
+                # 每日：水位日常观测（PDF：水位项目日常巡查-巡测站每日8-10时）
+                ('水位日常观测', 'water_level', 'daily', 1, 'in_progress', 4,
+                 ['观测基本水尺读数并记录', '校对遥测水位及时间', '检查水位设备无异常', '水位巡查表填记并拍照存档']),
+                # 每月：站房维护（PDF：巡测站站房维护-每月2次）
+                ('站房维护', 'water_level', 'monthly', 30, 'pending', 2,
+                 ['站房全面打扫', '地面窗台设备清洁', '墙面天花板无污迹蜘蛛网', '保持干净整洁']),
+                # 每月：设施设备维护（PDF：设施设备维护-每月）
+                ('设施设备检查', 'water_level', 'monthly', 30, 'pending', 2,
+                 ['检查清洗水尺', '水位设备检查', '爬梯牢固度检查', '设施设备巡查表填写']),
+                # 每月：安全检查（PDF：安全检查-每月一次）
+                ('安全检查', 'water_level', 'monthly', 30, 'pending', 2,
+                 ['测验设施设备检查', '安全环境检查', '灭火器检查', '安全器材检查', '安全检查记录填记']),
+                # 每半年：综合检查
+                ('半年综合检查', 'water_level', 'halfyear', 180, 'pending', 2,
+                 ['水准点校核', '水尺零高测量', 'RTU主板检查', '通信系统切换测试', '所有传感器校准']),
+
+                # ====== 雨量站 (rainfall) ======
+                # 每日：数据检查
+                ('雨量日常检查', 'rainfall', 'daily', 1, 'pending', 4,
+                 ['雨量数据检查', '通信状态检查', '电源电压检查']),
+                # 每月：雨量项目日常巡检（PDF：雨量项目日常巡检-每月1次）
+                ('雨量项目巡检', 'rainfall', 'monthly', 30, 'pending', 2,
+                 ['数据采集终端外观检查', '数据读取和上报检查', '终端内部状态检查',
+                  '供电设备检查', '布线检查', '雨量筒外观检查',
+                  '雨量筒器口水平检查', '雨量筒气泡居中检查', '雨量筒运行状态检查',
+                  '雨量采集准确性核对', '站点周边环境清理']),
+                # 每季度：注水试验（PDF：雨量项目-每季度注水试验）
+                ('雨量注水试验', 'rainfall', 'quarterly', 90, 'pending', 2,
+                 ['注入5-10mm清洗湿润过水部件', '翻斗运转灵活性检查', '信号输出正常检查',
+                  '清除翻斗存留水量', '每次注水三次不少于12.5mm',
+                  '测量误差不大于±4%为合格', '记录存盘']),
+                # 每半年：综合检查
+                ('半年综合检查', 'rainfall', 'halfyear', 180, 'pending', 2,
+                 ['雨量器全套校准', '通信系统测试', '备份电池检查', '机箱密封检查']),
+                # 每年：年度校准（PDF：每年汛前自动蒸发注水实验部分涉及）
+                ('年度校准', 'rainfall', 'yearly', 365, 'completed', 1,
+                 ['雨量资料整编', '雨量器更换评估', '年度校准报告编制']),
+
+                # ====== 蒸发站 (evaporation) ======
+                # 每日：数据检查
+                ('蒸发日常检查', 'evaporation', 'daily', 1, 'pending', 3,
+                 ['蒸发量数据检查', '水面状态观察', '通信状态检查']),
+                # 每月：蒸发项目日常巡检（PDF：蒸发项目日常巡检-每月不少于1次）
+                ('蒸发项目巡检', 'evaporation', 'monthly', 30, 'pending', 2,
+                 ['自动蒸发设备遥测终端现场巡检', '数据采集和传输终端外观检查',
+                  '终端内部状态检查', '供电设备检查', '布线检查']),
+                # 每月：蒸发器换水（PDF：一个月至少换水一次）
+                ('蒸发器换水', 'evaporation', 'monthly', 30, 'pending', 1,
+                 ['蒸发器换水', '水圈清洁保持无泥沙杂草杂物青苔', '取用能代表当地自然水体的水']),
+                # 每半年：渗漏检查（PDF：每半年需进行一次渗漏检查）
+                ('蒸发渗漏检查', 'evaporation', 'halfyear', 180, 'pending', 1,
+                 ['8时关闭蒸发皿阀门', '人工量测蒸发皿1日蒸发量', '通过邻站对比判断是否漏水',
+                  '同步观测自记值判断输水管道或静水桶是否漏水',
+                  '每日合理性检查-蒸发异常偏大时需进行渗漏检查']),
+                # 每半年：综合检查
+                ('半年综合检查', 'evaporation', 'halfyear', 180, 'pending', 2,
+                 ['蒸发器全套标定', '通信系统测试', '数据对比分析']),
+                # 每年：注水实验（PDF：每年汛前对自动蒸发进行注水实验）
+                ('蒸发注水实验', 'evaporation', 'yearly', 365, 'pending', 1,
+                 ['选择无雨日早晨或黄昏进行注水实验', '使用雨杯量取注入水量',
+                  '分别注入0.1mm至4mm梯度水量', '等待1-2分钟待液位稳定后读取',
+                  '同时人工测针测记蒸发器液位', '统计计算各项误差',
+                  '一代伟思折算系数0.868，二代伟思折算系数0.909']),
+
+                # ====== 墒情站 (soil_moisture) ======
+                # 每日：数据检查
+                ('墒情日常检查', 'soil_moisture', 'daily', 1, 'pending', 3,
+                 ['墒情数据检查', '通信状态检查', '电源状态检查']),
+                # 每季度：墒情站日常巡查（PDF：每季度对基本站巡查不少于1次）
+                ('墒情站巡查', 'soil_moisture', 'quarterly', 90, 'pending', 2,
+                 ['机箱内干净整洁检查', '清理周边杂草', '保持整洁无积水', '进行数据校测并做好记录',
+                  '干旱天气按规范做好取土检验工作']),
+                # 每半年：综合检查
+                ('半年综合检查', 'soil_moisture', 'halfyear', 180, 'pending', 1,
+                 ['传感器埋设状态检查', '数据对比分析', '机箱密封检查']),
+
+                # ====== 地下水监测站 (groundwater) ======
+                # 每日：数据监控（PDF：数据监控及台账建立-实时查看地下水数据到报率）
+                ('地下水日常监测', 'groundwater', 'daily', 1, 'pending', 3,
+                 ['地下水数据检查', '通信状态检查', '电源状态检查']),
+                # 每月：设备巡检（PDF：设施设备维护-每月检查）
+                ('地下水设备巡检', 'groundwater', 'monthly', 30, 'pending', 2,
+                 ['数据采集终端检查', '供电设备检查', '浮子式水位计运行检查',
+                  '压力式水位计运行检查', '机箱密封检查', '周边环境清理']),
+                # 每季度：巡查（PDF：墒情站巡查参考-每季度不少于1次）
+                ('地下水站巡查', 'groundwater', 'quarterly', 90, 'pending', 2,
+                 ['机箱内干净整洁检查', '清理周边杂草', '保持整洁无积水',
+                  '数据校测并做好记录', '传感器运行状态检查']),
+                # 每半年：综合检查
+                ('半年综合检查', 'groundwater', 'halfyear', 180, 'pending', 1,
+                 ['传感器全套校准', '通信系统切换测试', '数据对比分析']),
+
+                # ====== 站院 (station_yard) ======
+                # 每周：站院环境维护（PDF：驻测站站院环境维护-每周打扫）
+                ('站院环境维护', 'station_yard', 'weekly', 7, 'pending', 2,
+                 ['站院地面清洁', '窗台设备清洁', '墙面天花板无污迹蜘蛛网',
+                  '草地灌木修剪', '遇重大活动增加维护次数']),
+                # 每月：设施设备维护（PDF：设施设备维护-每月）
+                ('设施设备检查', 'station_yard', 'monthly', 30, 'pending', 2,
+                 ['检查清洗水尺', '设施设备全面检查', '爬梯牢固度检查',
+                  '护栏牢固度检查', '设施设备巡查表填写', '异常维修拍照存档']),
+                # 每月：安全检查（PDF：安全检查-每月一次）
+                ('安全检查', 'station_yard', 'monthly', 30, 'pending', 2,
+                 ['测验设施设备检查', '安全环境检查', '站房检查',
+                  '灭火器检查', '安全器材检查', '安全检查记录填记']),
+                # 每半年：综合检查
+                ('半年综合检查', 'station_yard', 'halfyear', 180, 'pending', 1,
+                 ['设施设备全面检修', '安全环境综合评估', '通信系统测试']),
+            ]
+
+            # ========== 生成计划 ==========
+            for pname, stype, freq, days, status, sel_cnt, check_items in plans:
+                sites_of_type = s_by_type.get(stype, [])
+                if not sites_of_type:
+                    continue
+                # 按站点打包：将同类型站点分批，每批生成一个计划（一批含多个站点）
+                chunk_size = stype in ('station_yard','reservoir') and 5 or 10
+                selected = sites_of_type
+                for chunk_idx in range(0, len(selected), chunk_size):
+                    chunk = selected[chunk_idx:chunk_idx + chunk_size]
+                    if not chunk: continue
+                    site_ids = [s['id'] for s in chunk]
+                    first_site = chunk[0]
+                    batch_num = chunk_idx // chunk_size + 1
+                    plan_label = pname
+                    if len(selected) > chunk_size:
+                        plan_label = f'{pname}({batch_num})'
+                    end_dt = datetime.now() + timedelta(days=days)
+                    start_date = now_str
+                    end_date = end_dt.strftime('%Y-%m-%d')
                     cur = db.execute(
                         "INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,status) VALUES (?,?,?,?,?,?)",
-                        (pname, psid, ptype, pstart, pend, pstatus)
+                        (f'{plan_label}', first_site['id'], freq, start_date, end_date, status)
                     )
                     pid = cur.lastrowid
-                    items = insp_items_map.get(site_types.get(psid, 'reservoir'), insp_items_map['reservoir'])
-                    for item in items:
-                        db.execute(
-                            "INSERT INTO inspection_tasks (plan_id,site_id,check_item,result,remark,check_time) VALUES (?,?,?,?,?,?)",
-                            (pid, psid, item, 'normal' if pstatus == 'completed' else None,
-                             '一切正常' if pstatus == 'completed' else None,
-                             pstart + ' 09:00' if pstatus == 'completed' else None)
-                        )
-                    # 对 in_progress 的计划，部分任务已完成
-                    if pstatus == 'in_progress':
-                        partial = db.execute(
-                            "SELECT id FROM inspection_tasks WHERE plan_id=? LIMIT ?", (pid, len(items)//2)
-                        ).fetchall()
-                        for r in partial:
+                    for sid in site_ids:
+                        db.execute("INSERT OR IGNORE INTO plan_sites (plan_id,site_id) VALUES (?,?)", (pid, sid))
+                    for sid in site_ids:
+                        for item in check_items:
+                            result = 'normal' if status == 'completed' else None
+                            remark = '一切正常' if status == 'completed' else None
+                            check_time = (start_date + ' 09:00') if status == 'completed' else None
                             db.execute(
-                                "UPDATE inspection_tasks SET result='normal', remark='运行正常', check_time=? WHERE id=?",
-                                (pstart + ' 08:30', r['id'])
+                                "INSERT INTO inspection_tasks (plan_id,site_id,check_item,result,remark,check_time) VALUES (?,?,?,?,?,?)",
+                                (pid, sid, item, result, remark, check_time)
                             )
+                    # 对 in_progress 的计划，部分任务已完成
+                    if status == 'in_progress':
+                        # 取前一半的站点的所有任务标记为已完成
+                        half_sites = site_ids[:max(1, len(site_ids)//2)]
+                        for sid in half_sites:
+                            tasks = db.execute(
+                                "SELECT id FROM inspection_tasks WHERE plan_id=? AND site_id=?",
+                                (pid, sid)
+                            ).fetchall()
+                            for r in tasks:
+                                db.execute(
+                                    "UPDATE inspection_tasks SET result='normal', remark='运行正常', check_time=? WHERE id=?",
+                                    (start_date + ' 08:30', r['id'])
+                                )
         db.commit()
         print("[Seed] Inspection plans seeded.")
 
@@ -833,69 +1091,64 @@ def seed_maintenance():
 def seed_maintenance_templates():
     """预置标准化运维模板（仅首次）"""
     templates = [
-        # === 日常维护类 ===
+        # === 日常维护类（站院环境）===
         ('日常维护','environment','驻测站站院环境维护（每周）','weekly',
          '对水位井、站院、大门口进行全面的打扫，确保干净整洁',
          '地面、窗台、设备等干净整洁，墙面、天花板无污迹、蜘蛛网、昆虫等',
-         '[{"id":"c1","label":"水位井区域全面打扫"},{"id":"c2","label":"站院地面清洁"},{"id":"c3","label":"大门口区域打扫"},{"id":"c4","label":"设备表面擦拭"},{"id":"c5","label":"墙面天花板检查（无污迹/蜘蛛网）"}]',
+         '[{"id":"c1","label":"水位井区域全面打扫"},{"id":"c2","label":"站院地面及大门口清洁"},{"id":"c3","label":"设备表面及窗台擦拭"},{"id":"c4","label":"墙面天花板检查（无污迹/蜘蛛网）"},{"id":"c5","label":"站院草地灌木修剪维护"}]',
          1, 2, 1),
-        ('日常维护','facility','巡测站站房维护（每月2次）','biweekly',
-         '对站房进行全面的打扫，确保干净整洁',
-         '地面、窗台、设备等干净整洁，墙面、天花板无污迹、蜘蛛网、昆虫等',
-         '[{"id":"c1","label":"站房地面清洁"},{"id":"c2","label":"窗台及设备擦拭"},{"id":"c3","label":"墙面天花板检查"},{"id":"c4","label":"门窗完好检查"}]',
-         1, 1.5, 2),
-        ('日常维护','observation','观测场管理（每月2次）','biweekly',
+        ('日常维护','observation','观测场草地维护（每半月）','biweekly',
          '对降蒸观测场草地进行维护，草皮高度符合规范要求',
          '降蒸观测场、站院草皮高度低于20cm，遇重大活动增加维护次数',
-         '[{"id":"c1","label":"草地修剪"},{"id":"c2","label":"草高测量（需≤20cm）"},{"id":"c3","label":"杂草清理"},{"id":"c4","label":"场地平整度检查"}]',
-         1, 2, 3),
-        ('日常维护','section','断面环境管理（每月）','monthly',
-         '对测流断面上下游各5米进行清理杂草、杂木，确保断面整洁',
+         '[{"id":"c1","label":"草地修剪（草高<20cm）"},{"id":"c2","label":"杂草清理"},{"id":"c3","label":"场地平整度检查"},{"id":"c4","label":"巡测站站房全面打扫"}]',
+         1, 2, 2),
+        ('日常维护','section','断面环境管理（每月+汛后）','monthly',
+         '测流断面、水尺断面、码头清理杂草杂木淤泥，确保断面整洁',
          '断面无积水、无淤泥、无杂草、无杂物',
-         '[{"id":"c1","label":"上下游各5米杂草清理"},{"id":"c2","label":"缆道铁塔四周清理"},{"id":"c3","label":"水尺码头淤泥清理"},{"id":"c4","label":"基本水尺底部清理"},{"id":"c5","label":"拍照存档"}]',
-         1, 3, 4),
-        # === 日常管理类 ===
+         '[{"id":"c1","label":"测流断面上下游各5米杂草清理"},{"id":"c2","label":"缆道铁塔四周清理"},{"id":"c3","label":"基本水尺断面上下游各10米清理"},{"id":"c4","label":"水尺码头/停船码头淤泥清理"},{"id":"c5","label":"比降断面水尺道路清理（汛期）"},{"id":"c6","label":"洪水退水及时清理"}]',
+         1, 3, 3),
+        # === 日常管理类（水位观测）===
+        ('日常管理','water_level','水位项目日常巡查（每日/每周）','weekly',
+         '观测基本水尺读数并记录，校对遥测水位及时间，检查清洗水尺设备',
+         '人工与遥测水位相差≥0.02m时需复核报送调整；驻测站每日2次，巡测站每日1次',
+         '[{"id":"c1","label":"基本水尺读数记录"},{"id":"c2","label":"遥测水位及时间校对"},{"id":"c3","label":"偏差检测（≥0.02m报送水情科）"},{"id":"c4","label":"水尺清洗检查"},{"id":"c5","label":"水位设备运行检查"},{"id":"c6","label":"填写水位巡查表并拍照存档"}]',
+         1, 0.5, 4),
         ('日常管理','facility','设施设备巡查（每月）','monthly',
          '检查清洗水尺，对设施设备、爬梯、护栏牢固度进行全面检查',
-         '填写设施设备巡查表，有异常维修、拍照存档并报中心站网监测科',
-         '[{"id":"c1","label":"水尺清洗检查"},{"id":"c2","label":"爬梯牢固度检查"},{"id":"c3","label":"护栏牢固度检查"},{"id":"c4","label":"设施设备外观检查"},{"id":"c5","label":"异常拍照存档"}]',
+         '填写设施设备巡查表，异常维修拍照存档并报中心站网监测科',
+         '[{"id":"c1","label":"水尺清洗检查"},{"id":"c2","label":"爬梯牢固度检查"},{"id":"c3","label":"护栏牢固度检查"},{"id":"c4","label":"设施设备外观检查"},{"id":"c5","label":"异常维修拍照存档"},{"id":"c6","label":"上报中心站网监测科"}]',
          1, 2, 5),
         ('日常管理','safety','安全检查（每月）','monthly',
-         '对测验设施设备、安全环境、站房、灭火器、安全器材进行一次安全检查',
-         '填记好安全检查记录，存在安全隐患需及时告知中心',
-         '[{"id":"c1","label":"灭火器压力检查"},{"id":"c2","label":"安全器材完好性"},{"id":"c3","label":"站房结构安全检查"},{"id":"c4","label":"电气线路检查"},{"id":"c5","label":"填写安全检查记录"}]',
+         '对测验设施设备、安全环境、站房、灭火器、安全器材进行全面安全检查',
+         '填记安全检查记录表，存在安全隐患需及时告知鄱阳湖水文水资源监测中心',
+         '[{"id":"c1","label":"灭火器压力及有效期检查"},{"id":"c2","label":"安全器材完好性检查"},{"id":"c3","label":"站房结构安全检查"},{"id":"c4","label":"电气线路检查"},{"id":"c5","label":"填写安全检查记录表"},{"id":"c6","label":"安全隐患告知中心"}]',
          1, 1.5, 6),
-        ('日常管理','generator','发电机保养（每月+汛期）','monthly',
-         '对发电机进行检查机油、线路等部件，发电运行时间不少于30分钟',
-         '每年汛前汛后保养，更换机油及线路，备足燃料及机油',
-         '[{"id":"c1","label":"机油液位检查"},{"id":"c2","label":"线路及各部件检查"},{"id":"c3","label":"发电运行≥30分钟"},{"id":"c4","label":"燃料及机油储备检查"},{"id":"c5","label":"记录运行时间"}]',
+        ('日常管理','generator','发电机保养维护（每月+汛前汛后）','monthly',
+         '每月检查机油线路并运行≥30分钟；每年汛前汛后更换机油及线路保养',
+         '发电机运行正常，备足燃料及机油，记录运行时间',
+         '[{"id":"c1","label":"机油液位检查"},{"id":"c2","label":"线路及各部件检查"},{"id":"c3","label":"发电运行≥30分钟并记录"},{"id":"c4","label":"燃料及机油储备检查"},{"id":"c5","label":"汛前/汛后更换机油保养"}]',
          1, 1.5, 7),
         # === 设备仪器维护类 ===
-        ('设备仪器维护','water_level','水位项目日常巡查（每日）','weekly',
-         '观测基本水尺读数并记录，校对遥测水位及时间',
-         '人工与遥测水位相差≥0.02m时需校对，以人工观测为准调整',
-         '[{"id":"c1","label":"基本水尺读数记录"},{"id":"c2","label":"遥测水位校对"},{"id":"c3","label":"偏差检测（≥0.02m告警）"},{"id":"c4","label":"水尺清洗检查"},{"id":"c5","label":"填记水位巡查表并拍照存档"}]',
-         1, 0.5, 8),
         ('设备仪器维护','rainfall','雨量项目日常巡检（每月）','monthly',
-         '遥测雨量器现场运行维护巡检，含数据采集终端、供电、雨量筒检查',
-         '每季度进行注水试验，误差≤±4%，大暴雨后及时检查',
-         '[{"id":"c1","label":"数据采集终端检查"},{"id":"c2","label":"供电设备检查"},{"id":"c3","label":"布线检查"},{"id":"c4","label":"雨量筒外观/水平检查"},{"id":"c5","label":"环境清理"},{"id":"c6","label":"季度注水试验（误差≤±4%）"}]',
-         1, 2, 9),
+         '遥测雨量器现场运行维护巡检，含数据采集终端、供电设备、雨量筒检查',
+         '每季度进行注水试验（≥12.5mm，误差≤±4%），特大暴雨后及时检查',
+         '[{"id":"c1","label":"数据采集终端外观及状态检查"},{"id":"c2","label":"供电设备检查"},{"id":"c3","label":"布线检查"},{"id":"c4","label":"雨量筒外观/器口水平检查"},{"id":"c5","label":"环境清理"},{"id":"c6","label":"季度注水试验（误差≤±4%）"}]',
+         1, 2, 8),
         ('设备仪器维护','evaporation','蒸发项目日常巡检（每月）','monthly',
-         '自动蒸发设备遥测终端现场运行维护巡检',
-         '每月不少于1次巡测，每半年渗漏检查，每月至少换水一次',
-         '[{"id":"c1","label":"自动蒸发设备检查"},{"id":"c2","label":"半年渗漏检查"},{"id":"c3","label":"蒸发器换水"},{"id":"c4","label":"水圈清洁"},{"id":"c5","label":"数据合理性检查"}]',
-         1, 1.5, 10),
+         '自动蒸发设备遥测终端现场运行维护巡检及换水',
+         '每月不少于1次巡测，每半年渗漏检查，每月至少换水一次保持清洁',
+         '[{"id":"c1","label":"自动蒸发设备遥测终端巡检"},{"id":"c2","label":"蒸发器换水（保持清洁）"},{"id":"c3","label":"水圈清洁及环境维护"},{"id":"c4","label":"渗漏检查（每半年）"},{"id":"c5","label":"数据合理性检查"},{"id":"c6","label":"汛前自动注水实验"}]',
+         1, 1.5, 9),
+        ('设备仪器维护','cableway','缆道日常巡检（测流时）','seasonal',
+         '测流时对主索、循环索、锚碇、导向轮、绞车等进行检查维护',
+         '检查锚碇位移、钢丝绳夹头松紧、绞车运转；异常拍照留底并通知甲方',
+         '[{"id":"c1","label":"主索/循环索检查维护"},{"id":"c2","label":"拉线/卡头检查（异常通知甲方）"},{"id":"c3","label":"工作索毛刺断骨拍照留底"},{"id":"c4","label":"锚碇位移/土壤裂纹检查"},{"id":"c5","label":"导向轮/游轮运转检查"},{"id":"c6","label":"绞车运转检查"},{"id":"c7","label":"钢丝绳夹头/生锈/排水检查"}]',
+         1, 3, 10),
         ('设备仪器维护','soil_moisture','墒情站日常巡查（季度）','seasonal',
-         '对墒情基本站巡查，保持整洁、数据校测',
-         '每季度对基本站巡查不少于1次，保持机箱内干净整洁，清理周边杂草',
-         '[{"id":"c1","label":"机箱内部清洁"},{"id":"c2","label":"周边杂草清理"},{"id":"c3","label":"无积水检查"},{"id":"c4","label":"数据校测记录"}]',
+         '对墒情基本站进行巡查，保持整洁、数据校测',
+         '每季度对基本站巡查不少于1次，保持机箱内干净整洁，清理周边杂草；干旱天气取土检验',
+         '[{"id":"c1","label":"机箱内部清洁"},{"id":"c2","label":"周边杂草清理"},{"id":"c3","label":"无积水检查"},{"id":"c4","label":"数据校测记录"},{"id":"c5","label":"辅助站取土烘干法检验（干旱触发）"}]',
          0, 1.5, 11),
-        ('设备仪器维护','hydrology','缆道日常巡检（测流时）','seasonal',
-         '测流时对行主索、循环索、锚碇、导向轮、绞车等进行检查维护',
-         '检查锚碇有无位移、钢丝绳夹头是否松动、绞车运转情况',
-         '[{"id":"c1","label":"主索/循环索检查"},{"id":"c2","label":"拉线/卡头检查"},{"id":"c3","label":"锚碇检查（位移/生锈）"},{"id":"c4","label":"导向轮/游轮/行车架检查"},{"id":"c5","label":"绞车运转检查"},{"id":"c6","label":"异常拍照留底"}]',
-         1, 3, 12),
     ]
     with get_db() as db:
         cnt = db.execute("SELECT COUNT(*) FROM maintenance_templates").fetchone()[0]
@@ -1291,13 +1544,18 @@ def migrate_alert_flow():
                 db.execute(col_sql)
             except Exception:
                 pass
-        # 已有 alert 分类：仅对尚未设置 flow_type 的告警进行迁移（不覆盖已设定的）
-        db.execute("UPDATE alerts SET flow_type='auto', flow_status='converted', status='acknowledged' WHERE metric IN ('data_gap','device_status') AND status='acknowledged' AND flow_type IS NULL")
-        db.execute("UPDATE alerts SET flow_type='auto', flow_status='pending' WHERE metric IN ('data_gap','device_status') AND status='pending' AND flow_type IS NULL")
+        # 所有未设 flow_type 的告警统一为 manual（create_alert_internal 自行管理 auto 类型）
         db.execute("UPDATE alerts SET flow_type='manual', flow_status='pending_review' WHERE flow_type IS NULL")
         # 已有 related_order_no 的设置 converted
         db.execute("UPDATE alerts SET flow_status='converted' WHERE related_order_no IS NOT NULL AND related_order_no != ''")
+        # 修复：之前被错误自动转化的 data_gap/device_status 告警 → 重置为手动复核
+        # （仅限没有关联工单的，有工单的保持已完结状态）
+        db.execute("UPDATE alerts SET flow_type='manual', flow_status='pending_review', status='pending' WHERE metric IN ('data_gap','device_status') AND flow_type='auto' AND (related_order_no IS NULL OR related_order_no='')")
         db.commit()
+        # 统计修复的告警数
+        fixed = db.execute("SELECT COUNT(*) as c FROM alerts WHERE flow_type='manual' AND flow_status='pending_review' AND status='pending' AND metric IN ('data_gap','device_status')").fetchone()['c']
+        if fixed:
+            print(f"[Migrate] 已重置 {fixed} 条 device_status/data_gap 告警为手动复核模式")
         print("[Migrate] alert_flow 迁移完成: flow_type/flow_status 字段已添加并初始化")
 
 def _auto_convert_alert(db, alert_id, site_id, alert_level, message, metric):
@@ -1320,8 +1578,8 @@ def _auto_convert_alert(db, alert_id, site_id, alert_level, message, metric):
         order_level, f"[自动] {message}", message,
         assignee, 'pending', sla_deadline
     ))
-    # 更新告警状态
-    db.execute("UPDATE alerts SET flow_status='converted', related_order_no=?, status='acknowledged' WHERE id=?",
+    # 更新告警状态：保持 pending 可见，标记已流转
+    db.execute("UPDATE alerts SET flow_status='converted', related_order_no=?, status='pending' WHERE id=?",
                (order_no, alert_id))
     # 时间线
     db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
@@ -1468,6 +1726,37 @@ def _filter_site_ids():
     if site_ids is None:
         return None
     return site_ids
+
+
+# ===================== 通知系统辅助函数 =====================
+
+def _create_notification(user_id, source_type, source_id, title, content=''):
+    """创建通知（内部函数）"""
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO notifications (user_id, source_type, source_id, title, content) VALUES (?,?,?,?,?)",
+            (user_id, source_type, source_id, title, content)
+        )
+        db.commit()
+
+def _notify_inspection_plan(plan_id, plan_name, site_id, event):
+    """巡检计划事件通知相关站点负责人"""
+    with get_db() as db:
+        # 查站点负责人
+        site = db.execute("SELECT name, manager FROM sites WHERE id=?", (site_id,)).fetchone()
+        if not site: return
+        manager = site['manager'] or ''
+        if not manager: return
+        # 根据负责人姓名找到对应用户
+        user = db.execute("SELECT id FROM users WHERE real_name=? AND role='operator'", (manager,)).fetchone()
+        if user:
+            title = f'巡检计划{event}' if event != 'completed' else '巡检计划已完成'
+            content = f'{site["name"]}-{plan_name}'
+            _create_notification(user['id'], 'inspection', plan_id, title, content)
+        # 管理员也收到通知
+        admin = db.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()
+        if admin:
+            _create_notification(admin['id'], 'inspection', plan_id, f'巡检计划{event}', f'{site["name"]}-{plan_name}')
 
 
 # ===================== API Routes =====================
@@ -1752,6 +2041,7 @@ def site_data_trend(site_id):
         'series': grouped,
         'total_points': len(rows)
     })
+@app.route('/api/data/overview')
 @login_required
 def data_overview():
     site_ids = _filter_site_ids()
@@ -1787,6 +2077,21 @@ def get_alerts():
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     with get_db() as db:
+        # 自动办结：已关联工单且工单已闭环的告警 → 自动 resolved
+        resolved_ids = db.execute("""
+            SELECT a.id FROM alerts a
+            WHERE a.status='pending' AND a.flow_status='converted' AND a.related_order_no IS NOT NULL AND a.related_order_no != ''
+            AND a.related_order_no IN (SELECT order_no FROM work_orders WHERE status='closed')
+        """).fetchall()
+        if resolved_ids:
+            ids = [r['id'] for r in resolved_ids]
+            ph = ','.join('?' * len(ids))
+            db.execute(f"UPDATE alerts SET status='resolved', resolved_at=datetime('now','localtime') WHERE id IN ({ph})", ids)
+            for rid in ids:
+                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                    ('alert', rid, 'resolved', '系统', '关联工单已闭环，告警自动办结'))
+            db.commit()
+            print(f"[AutoResolve] 自动办结 {len(ids)} 条告警（关联工单已闭环）")
         q = """
             SELECT a.*, s.name as site_name, s.code as site_code
             FROM alerts a LEFT JOIN sites s ON a.site_id=s.id
@@ -1953,7 +2258,7 @@ def confirm_convert_alert(alert_id):
                 order_level, f"[复核] {alert['message']}", alert['message'],
                 assignee, 'pending', sla_deadline
             ))
-            db.execute("UPDATE alerts SET flow_status='converted', related_order_no=?, status='acknowledged' WHERE id=?",
+            db.execute("UPDATE alerts SET flow_status='converted', related_order_no=?, status='pending' WHERE id=?",
                        (order_no, alert_id))
             db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                        ('alert', alert_id, 'manual_converted', operator, f'人工复核转工单 {order_no}'))
@@ -1990,8 +2295,8 @@ def convert_alert_to_order(alert_id):
             order_level, f"[告警转] {alert['message']}", alert['message'],
             assignee, 'pending', sla_deadline
         ))
-        # 更新告警关联工单号 + 状态改为已确认
-        db.execute("UPDATE alerts SET related_order_no=?, status='acknowledged' WHERE id=?", (order_no, alert_id))
+        # 更新告警关联工单号 + 保持 pending 不消失
+        db.execute("UPDATE alerts SET related_order_no=?, flow_status='converted', status='pending' WHERE id=?", (order_no, alert_id))
         # 记录时间线
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('alert', alert_id, 'converted', operator, f'转工单 {order_no}'))
@@ -2046,7 +2351,7 @@ def batch_alert_operations():
                     VALUES (?,?,?,?,?,?,?,?,?)
                 """, (order_no, alert['site_id'], 'auto', '告警批量转工单', order_level,
                       f"[告警转] {alert['message']}", alert['message'], 'pending', sla_deadline))
-                db.execute("UPDATE alerts SET related_order_no=?, status='acknowledged' WHERE id=?", (order_no, aid))
+                db.execute("UPDATE alerts SET related_order_no=?, flow_status='converted', status='pending' WHERE id=?", (order_no, aid))
                 db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                            ('alert', aid, 'converted', operator, f'批量转工单 {order_no}'))
         else:
@@ -2129,24 +2434,45 @@ def get_workorders():
 
 @app.route('/api/workorders', methods=['POST'])
 def create_workorder():
-    data = request.json
-    with get_db() as db:
-        now = datetime.now()
-        order_no = f"WO-{now.strftime('%Y%m%d')}-{random.randint(100,999)}"
-        sla_hours = {'normal': 72, 'urgent': 24, 'critical': 2}.get(data.get('level','normal'), 72)
-        sla_deadline = (now + timedelta(hours=sla_hours)).strftime('%Y-%m-%d %H:%M')
-        db.execute("""
-            INSERT INTO work_orders (order_no,site_id,source,event_type,level,title,description,images,assignee,status,sla_deadline)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            order_no, data.get('site_id'), data.get('source','manual'),
-            data.get('event_type',''), data.get('level','normal'),
-            data.get('title',''), data.get('description',''),
-            data.get('images',''), data.get('assignee',''),
-            'pending', sla_deadline
-        ))
-        db.commit()
-        return jsonify({'success': True, 'order_no': order_no})
+    """创建工单 — 直接进入处置中（跳过待受理/已受理/已派发，系统自动完成）"""
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({'error': '无效的请求数据'}), 400
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with get_db() as db:
+                now = datetime.now()
+                order_no = f"WO-{now.strftime('%Y%m%d')}-{random.randint(100,999)}"
+                sla_hours = {'normal': 72, 'urgent': 24, 'critical': 2}.get(data.get('level','normal'), 72)
+                sla_deadline = (now + timedelta(hours=sla_hours)).strftime('%Y-%m-%d %H:%M')
+                assignee = data.get('assignee','')
+                # 直接创建为 in_progress（待受理→已受理→已派发→处置中，系统瞬间完成）
+                db.execute("""
+                    INSERT INTO work_orders (order_no,site_id,source,event_type,level,title,description,images,assignee,status,sla_deadline)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    order_no, data.get('site_id'), data.get('source','manual'),
+                    data.get('event_type',''), data.get('level','normal'),
+                    data.get('title',''), data.get('description',''),
+                    data.get('images',''), assignee,
+                    'in_progress', sla_deadline
+                ))
+                # 时间线记录：记录完整的自动流转链路
+                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                           ('order', 0, 'accepted', '系统', f'工单{order_no} → 已受理（自动）'))
+                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                           ('order', 0, 'dispatched', '系统' if not assignee else assignee, f'工单{order_no} → 已派发（自动）'))
+                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                           ('order', 0, 'in_progress', '系统', f'工单{order_no} → 处置中（自动）'))
+                db.commit()
+                return jsonify({'success': True, 'order_no': order_no})
+        except Exception as e:
+            if 'database is locked' in str(e) and attempt < max_retries - 1:
+                import time as _t
+                _t.sleep(0.3 * (attempt + 1))  # 退避: 0.3s, 0.6s
+                continue
+            return jsonify({'error': str(e)}), 500
 
 @app.route('/api/workorders/<order_no>/status', methods=['PUT'])
 def update_workorder_status(order_no):
@@ -2154,10 +2480,10 @@ def update_workorder_status(order_no):
     new_status = data.get('status')
     valid_transitions = {
         'pending': ['accepted'],
-        'accepted': ['in_progress'],
+        'accepted': ['in_progress', 'dispatched'],
+        'dispatched': ['in_progress'],
         'in_progress': ['reviewing', 'accepted'],
-        'reviewing': ['acceptance', 'in_progress'],
-        'acceptance': ['closed'],
+        'reviewing': ['closed', 'in_progress'],
     }
     with get_db() as db:
         cur = db.execute("SELECT status FROM work_orders WHERE order_no=?", (order_no,)).fetchone()
@@ -2169,41 +2495,6 @@ def update_workorder_status(order_no):
         params = [new_status]
         if new_status == 'closed':
             updates.append("resolved_at=datetime('now','localtime')")
-            # 查找关联告警
-            try:
-                related_alerts = db.execute(
-                    "SELECT id, site_id FROM alerts WHERE related_order_no=? AND status!='resolved'",
-                    (order_no,)
-                ).fetchall()
-                for ra in related_alerts:
-                    # 检查站点最新传感器数据
-                    last_data = db.execute(
-                        "SELECT MAX(recorded_at) FROM sensor_data WHERE site_id=?",
-                        (ra['site_id'],)
-                    ).fetchone()[0]
-                    data_normal = False
-                    if last_data:
-                        from datetime import datetime as _dt4
-                        try:
-                            minutes_ago = (_dt4.now() - _dt4.strptime(last_data, '%Y-%m-%d %H:%M:%S')).total_seconds() / 60
-                            if minutes_ago < 60:  # 最近1小时有数据=恢复正常
-                                data_normal = True
-                        except Exception:
-                            pass
-
-                    if data_normal:
-                        # 数据已正常→办结
-                        db.execute("UPDATE alerts SET status='resolved', resolved_at=datetime('now','localtime') WHERE id=?", (ra['id'],))
-                    else:
-                        # 数据仍异常→改为monitoring状态（保持acknowledged，增加备注）
-                        db.execute("UPDATE alerts SET message=message||' [工单已关闭，数据仍待确认]', response_deadline=datetime('now','+1 day','localtime') WHERE id=?", (ra['id'],))
-
-                # 写时间线
-                operator = data.get('operator', '系统')
-                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
-                           ('work_order', order_no, 'closed', operator, '工单归档'))
-            except Exception:
-                pass
         if 'remark' in data:
             updates.append("remark=?")
             params.append(data['remark'])
@@ -2214,13 +2505,12 @@ def update_workorder_status(order_no):
         db.execute(f"UPDATE work_orders SET {','.join(updates)} WHERE order_no=?", params)
         # 时间线记录
         operator = data.get('operator', '系统')
-        status_cn = {'pending':'待受理','accepted':'已受理','generated':'已生成','dispatched':'已派发','in_progress':'处置中','reviewing':'审核中','acceptance':'验收中','closed':'已关闭'}
+        status_cn = {'pending':'待受理','accepted':'已受理','generated':'已生成','dispatched':'已派发','in_progress':'处置中','reviewing':'审核中','closed':'已完成'}
         event_label = status_cn.get(new_status, new_status)
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('order', 0, new_status, operator, f'工单{order_no} → {event_label}'))
         db.commit()
-        summary = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status NOT IN ('closed')").fetchone()['c']
-        return jsonify({'success': True, 'summary': {'open_orders': summary}})
+        return jsonify({'success': True, 'status': new_status})
 
 @app.route('/api/workorders/<orderNo>/photos')
 @login_required
@@ -2249,7 +2539,6 @@ def workorder_photos(orderNo):
                     'remark': r['remark'] or '',
                     'time': r['check_time'] or '',
                 })
-        return jsonify({'success': True, 'photos': photos})
 
 @app.route('/api/workorders/statistics')
 @login_required
@@ -2260,7 +2549,7 @@ def workorder_statistics():
             ph = ','.join('?' * len(site_ids))
             total = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE site_id IN ({ph})", site_ids).fetchone()['c']
             by_status = {}
-            for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','acceptance','closed']:
+            for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','closed']:
                 by_status[st] = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE status=? AND site_id IN ({ph})", [st] + site_ids).fetchone()['c']
             today = datetime.now().strftime('%Y-%m-%d')
             today_new = db.execute(f"SELECT COUNT(*) as c FROM work_orders WHERE date(created_at)=? AND site_id IN ({ph})", [today] + site_ids).fetchone()['c']
@@ -2268,7 +2557,7 @@ def workorder_statistics():
         else:
             total = db.execute("SELECT COUNT(*) as c FROM work_orders").fetchone()['c']
             by_status = {}
-            for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','acceptance','closed']:
+            for st in ['pending','accepted','generated','dispatched','in_progress','reviewing','closed']:
                 by_status[st] = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE status=?",(st,)).fetchone()['c']
             today = datetime.now().strftime('%Y-%m-%d')
             today_new = db.execute("SELECT COUNT(*) as c FROM work_orders WHERE date(created_at)=?",(today,)).fetchone()['c']
@@ -2280,33 +2569,83 @@ def workorder_statistics():
 @login_required
 def get_inspections():
     site_ids = _filter_site_ids()
+    freq = request.args.get('frequency', '')  # high/mid/low/annual
     with get_db() as db:
         q = """
-            SELECT p.*, s.name as site_name, s.code as site_code,
+            SELECT p.*,
                 (SELECT COUNT(*) FROM inspection_tasks t WHERE t.plan_id=p.id) as total_items,
                 (SELECT COUNT(*) FROM inspection_tasks t WHERE t.plan_id=p.id AND t.result IS NOT NULL) as completed_items
-            FROM inspection_plans p LEFT JOIN sites s ON p.site_id=s.id
+            FROM inspection_plans p
             WHERE 1=1
         """
         params = []
         if site_ids is not None:
             ph = ','.join('?' * len(site_ids))
-            q += f" AND p.site_id IN ({ph})"
+            q += f" AND p.id IN (SELECT plan_id FROM plan_sites WHERE site_id IN ({ph}))"
             params.extend(site_ids)
         q += " ORDER BY p.created_at DESC"
         rows = db.execute(q, params).fetchall()
-        return jsonify([dict(r) for r in rows])
+        plans = [dict(r) for r in rows]
+        # 为每个计划加载关联站点列表
+        for plan in plans:
+            sites = db.execute("""
+                SELECT s.id, s.name as site_name, s.code as site_code, s.type as site_type,
+                    s.lat, s.lng, s.manager as assignee
+                FROM plan_sites ps JOIN sites s ON ps.site_id=s.id
+                WHERE ps.plan_id=?
+            """, (plan['id'],)).fetchall()
+            plan['sites'] = [dict(s) for s in sites]
+            # 兼容旧字段：取第一个站点
+            if sites:
+                plan['site_id'] = sites[0]['id']
+                plan['site_name'] = sites[0]['site_name']
+                plan['site_code'] = sites[0]['site_code']
+                plan['site_type'] = sites[0]['site_type']
+                plan['lat'] = sites[0]['lat']
+                plan['lng'] = sites[0]['lng']
+                plan['assignee'] = sites[0]['assignee']
+            else:
+                plan['site_id'] = plan['site_name'] = plan['site_code'] = plan['site_type'] = None
+                plan['lat'] = plan['lng'] = None
+                plan['assignee'] = None
+        # 按 site_type 统计分组
+        site_type_map = {
+            'station_yard': '站院', 'reservoir': '站院', 'sluice': '水文站',
+            'dike': '水文站', 'pump': '水文站', 'water_supply': '水文站',
+            'hydrology': '水文站', 'water_level': '水位站', 'rainfall': '雨量站',
+            'groundwater': '地下水监测站', 'soil_moisture': '墒情站',
+            'evaporation': '蒸发站',
+        }
+        site_cats = {}
+        for p in plans:
+            st = site_type_map.get(p.get('site_type',''), '其他')
+            p['site_cat'] = st
+            site_cats.setdefault(st, {'total':0,'pending':0,'in_progress':0,'completed':0})
+            site_cats[st]['total'] += 1
+            site_cats[st][p['status']] = site_cats[st].get(p['status'], 0) + 1
+        return jsonify({'plans': plans, 'categories': site_cats, 'site_categories': site_cats})
 
 @app.route('/api/inspections', methods=['POST'])
 def create_inspection():
     data = request.json
     with get_db() as db:
         scheme_id = data.get('scheme_id')
+        # 支持 site_ids 数组（多站点）和 site_id 单个站点（兼容旧版）
+        site_ids = data.get('site_ids', [])
+        site_id = data.get('site_id')
+        if site_id and not site_ids:
+            site_ids = [site_id]
+        if not site_ids:
+            return jsonify({'success': False, 'error': '请指定至少一个站点'}), 400
+        first_site = site_ids[0]
         cursor = db.execute("""
-            INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,period,description,scheme_id)
-            VALUES (?,?,?,?,?,?,?,?)
-        """, (data['plan_name'],data['site_id'],data['type'],data['start_date'],data['end_date'],data.get('period','once'),data.get('description',''),scheme_id))
+            INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,period,description,category,scheme_id)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (data['plan_name'], first_site, data['type'], data['start_date'], data['end_date'], data.get('period','once'), data.get('description',''), data.get('category',''), scheme_id))
         plan_id = cursor.lastrowid
+        # 写入 plan_sites（多站点关联）
+        for sid in site_ids:
+            db.execute("INSERT OR IGNORE INTO plan_sites (plan_id, site_id) VALUES (?,?)", (plan_id, sid))
         # 生成检查项：优先从scheme_id加载，否则用check_items
         check_items = data.get('check_items', [])
         if scheme_id:
@@ -2315,18 +2654,35 @@ def create_inspection():
                 check_items = [r['check_item'] for r in scheme_items]
         if not check_items:
             check_items = ['坝体外观检查','溢洪道检查','放水设施检查','监测设备检查','防汛物资检查','管理设施检查']
-        for item in check_items:
-            db.execute(
-                "INSERT INTO inspection_tasks (plan_id,site_id,check_item) VALUES (?,?,?)",
-                (plan_id, data['site_id'], item)
-            )
+        for sid in site_ids:
+            for item in check_items:
+                db.execute(
+                    "INSERT INTO inspection_tasks (plan_id,site_id,check_item) VALUES (?,?,?)",
+                    (plan_id, sid, item)
+                )
         db.commit()
         # 时间线记录
         operator = data.get('operator', '系统')
         db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                    ('inspection', plan_id, 'created', operator, f'创建巡检计划-{data["plan_name"]}'))
         db.commit()
+        # 通知站点负责人
+        _notify_inspection_plan(plan_id, data['plan_name'], first_site, '已创建')
         return jsonify({'success': True, 'plan_id': plan_id})
+
+@app.route('/api/inspections/<int:plan_id>', methods=['DELETE'])
+@login_required
+def delete_inspection(plan_id):
+    """删除巡检计划及其检查项"""
+    with get_db() as db:
+        plan = db.execute("SELECT plan_name, site_id FROM inspection_plans WHERE id=?", (plan_id,)).fetchone()
+        if not plan:
+            return jsonify({'error': '计划不存在'}), 404
+        db.execute("DELETE FROM plan_sites WHERE plan_id=?", (plan_id,))
+        db.execute("DELETE FROM inspection_tasks WHERE plan_id=?", (plan_id,))
+        db.execute("DELETE FROM timeline_events WHERE source_type='inspection' AND source_id=?", (plan_id,))
+        db.execute("DELETE FROM inspection_plans WHERE id=?", (plan_id,))
+        db.commit()
 
 @app.route('/api/inspections/<int:plan_id>/tasks')
 def get_inspection_tasks(plan_id):
@@ -2334,15 +2690,35 @@ def get_inspection_tasks(plan_id):
         rows = db.execute("SELECT * FROM inspection_tasks WHERE plan_id=? ORDER BY id", (plan_id,)).fetchall()
         return jsonify([dict(r) for r in rows])
 
+@app.route('/api/inspections/<int:plan_id>/attachments')
+def get_inspection_attachments(plan_id):
+    """返回巡检计划的附件列表（有照片的检查项）"""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT id, check_item, photo, remark, check_time, result FROM inspection_tasks WHERE plan_id=? AND photo IS NOT NULL AND photo != '' ORDER BY check_time DESC",
+            (plan_id,)
+        ).fetchall()
+        return jsonify([dict(r) for r in rows])
 @app.route('/api/inspections/tasks/<int:task_id>', methods=['PUT'])
 def update_inspection_task(task_id):
     data = request.json
     with get_db() as db:
-        db.execute("""
-            UPDATE inspection_tasks SET result=?, photo=?, gps_lat=?, gps_lng=?, check_time=?, remark=?
-            WHERE id=?
-        """, (data.get('result'),data.get('photo'),data.get('gps_lat'),data.get('gps_lng'),
-              data.get('check_time'),data.get('remark'),task_id))
+        # 构造动态更新字段
+        updates = ["result=?", "photo=?", "gps_lat=?", "gps_lng=?", "check_time=?", "remark=?"]
+        params = [data.get('result'), data.get('photo'), data.get('gps_lat'), data.get('gps_lng'),
+                  data.get('check_time'), data.get('remark')]
+        # 新增字段
+        if 'photo_urls' in data:
+            updates.append("photo_urls=?")
+            params.append(data['photo_urls'])
+        if 'calibrator' in data:
+            updates.append("calibrator=?")
+            params.append(data['calibrator'])
+        if 'calibration_values' in data:
+            updates.append("calibration_values=?")
+            params.append(data['calibration_values'])
+        params.append(task_id)
+        db.execute(f"UPDATE inspection_tasks SET {','.join(updates)} WHERE id=?", params)
         # 更新计划状态
         task = db.execute("SELECT plan_id FROM inspection_tasks WHERE id=?", (task_id,)).fetchone()
         if task:
@@ -2352,13 +2728,13 @@ def update_inspection_task(task_id):
             ).fetchone()['c']
             if incomplete == 0:
                 db.execute("UPDATE inspection_plans SET status='completed' WHERE id=?", (task['plan_id'],))
-                plan = db.execute("SELECT plan_name FROM inspection_plans WHERE id=?", (task['plan_id'],)).fetchone()
+                plan = db.execute("SELECT plan_name, site_id FROM inspection_plans WHERE id=?", (task['plan_id'],)).fetchone()
                 if plan:
                     db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
                                ('inspection', task['plan_id'], 'completed', '系统', f'巡检计划完成-{plan["plan_name"]}'))
+                    _notify_inspection_plan(task['plan_id'], plan['plan_name'], plan['site_id'], '已完成')
         db.commit()
-        summary = db.execute("SELECT COUNT(*) as c FROM inspection_tasks WHERE result IS NULL").fetchone()['c']
-        return jsonify({'success': True, 'summary': {'inspections_pending': summary}})
+        return jsonify({'success': True})
 
 @app.route('/api/inspections/statistics')
 @login_required
@@ -2367,8 +2743,8 @@ def inspection_statistics():
     with get_db() as db:
         if site_ids is not None:
             ph = ','.join('?' * len(site_ids))
-            total_plans = db.execute(f"SELECT COUNT(*) as c FROM inspection_plans WHERE site_id IN ({ph})", site_ids).fetchone()['c']
-            done = db.execute(f"SELECT COUNT(*) as c FROM inspection_plans WHERE status='completed' AND site_id IN ({ph})", site_ids).fetchone()['c']
+            total_plans = db.execute(f"SELECT COUNT(DISTINCT plan_id) as c FROM plan_sites WHERE site_id IN ({ph})", site_ids).fetchone()['c']
+            done = db.execute(f"SELECT COUNT(DISTINCT p.id) as c FROM inspection_plans p JOIN plan_sites ps ON p.id=ps.plan_id WHERE p.status='completed' AND ps.site_id IN ({ph})", site_ids).fetchone()['c']
             total_tasks = db.execute(f"SELECT COUNT(*) as c FROM inspection_tasks WHERE site_id IN ({ph})", site_ids).fetchone()['c']
             done_tasks = db.execute(f"SELECT COUNT(*) as c FROM inspection_tasks WHERE result IS NOT NULL AND site_id IN ({ph})", site_ids).fetchone()['c']
             abnormal = db.execute(f"SELECT COUNT(*) as c FROM inspection_tasks WHERE result='abnormal' AND site_id IN ({ph})", site_ids).fetchone()['c']
@@ -2384,73 +2760,68 @@ def inspection_statistics():
             'abnormal_count':abnormal
         })
 
-
-# ===================== 巡检方案管理 API =====================
-
 DEFAULT_CHECK_ITEMS = {
-    '水工建筑物': ['坝体/堤防外观检查','溢洪道/泄洪设施检查','放水涵洞/输水设施检查','护坡/护岸完整性检查','变形/位移观测'],
-    '金属结构': ['闸门启闭机运行检查','钢丝绳/吊杆磨损检查','止水橡胶/密封件检查'],
-    '监测设备': ['水位计运行状态及精度校验','雨量计清洁及校准','流量计/流速仪运行检查','土壤墒情传感器检查','蒸发皿清洁及补水'],
-    '通信设备': ['RTU遥测终端运行状态','通信模块(4G/北斗)信号检测','数据采集频率/完整性校验'],
-    '供电系统': ['太阳能板清洁及朝向检查','蓄电池电压/容量测试','充放电控制器检查','供电线路/防雷器检查'],
-    '安全防护': ['防雷接地电阻测试','围栏/门锁/警示标识','视频监控设备检查'],
-    '环境维护': ['站房/站院卫生清理','排水沟/截水沟疏通','杂草清除/防鼠防虫'],
-    '应急管理': ['备品备件库存清点','应急物资/工具检查','防汛预案/操作规程上墙'],
+    '站院环境': ['水位井/站院/大门口全面打扫','设备表面及窗台擦拭','墙面天花板检查(无污迹/蜘蛛网)','草地灌木修剪维护','巡测站站房全面打扫','观测场草地维护(草高<20cm)'],
+    '断面环境': ['测流断面上下游各5米清理杂草杂木','缆道铁塔四周清理','基本水尺断面上下游各10米清理','水尺码头/停船码头清理淤泥杂草','比降断面水尺道路清理','洪水退水时及时清理'],
+    '水位观测': ['基本水尺读数观测记录','遥测水位及时间校对','人工与遥测水位偏差检测','水尺清洗检查','水位设备运行检查','填记水位巡查表并拍照存档'],
+    '雨量监测': ['遥测雨量器现场运行维护','数据采集终端内部状态检查','供电设备及布线检查','雨量筒外观及水平检查','注水试验(季度≥12.5mm误差≤±4%)','特大暴雨后及时检查'],
+    '蒸发监测': ['自动蒸发设备遥测终端巡检','蒸发器换水保持清洁','渗漏检查(半年/关闭阀门/邻站对比)','自动蒸发系统注水实验(汛前)','水圈清洁及环境维护'],
+    '墒情监测': ['机箱内部清洁','周边杂草清理','无积水检查','数据校测记录','辅助站取土烘干法检验(干旱触发)'],
+    '设施设备': ['水尺清洗检查','爬梯/护栏牢固度全面检查','设施设备外观检查','异常维修与拍照存档','上报中心站网监测科'],
+    '缆道系统': ['行主索/循环索检查维护','拉线/卡头检查(异常通知甲方)','工作索毛刺断骨拍照留底','锚碇位移/土壤裂纹检查','导向轮/游轮/行车架运转检查','绞车运转检查','钢丝绳夹头/生锈/排水检查'],
+    '安全防护': ['测验设施设备安全环境检查','灭火器压力及有效期检查','安全器材完好性检查','站房结构安全及电气线路检查','填写安全检查记录表','安全隐患及时告知中心'],
+    '发电机': ['发电机维护保养(汛前/汛后:更换机油/线路/备足燃料)','机油液位检查','线路及各部件检查','发电运行≥30分钟并记录','燃料及机油储备检查'],
     '自定义': []
 }
 
-DAY_ITEMS = ['水工建筑物','金属结构','监测设备','通信设备','环境维护']
-WEEK_ITEMS = ['水工建筑物','金属结构','监测设备','通信设备','供电系统','安全防护','环境维护','应急管理']
-MONTH_ITEMS = ['水工建筑物','金属结构','监测设备','通信设备','供电系统','安全防护','环境维护','应急管理']
+DAY_ITEMS = ['水位观测']
+WEEK_ITEMS = ['站院环境','水位观测']
+MONTH_ITEMS = ['站院环境','水位观测','雨量监测','蒸发监测','设施设备','安全防护','发电机']
+QUARTER_ITEMS = ['雨量监测','墒情监测']
+HALF_YEAR_ITEMS = ['蒸发监测']
+YEAR_ITEMS = ['断面环境','蒸发监测','发电机']
+
+# DOCX 巡查对象分类（按一）— 用于巡检计划分类显示
+DOCX_CATEGORIES = [
+    ('站院环境', '站院/观测场清洁、草地修剪维护'),
+    ('断面环境', '测流断面及水尺码头清理'),
+    ('水位观测', '水尺读数、遥测校对、水位设备检查'),
+    ('雨量监测', '雨量器巡检、注水试验'),
+    ('蒸发监测', '蒸发设备巡检、换水、渗漏检查'),
+    ('墒情监测', '墒情站巡查、数据校测'),
+    ('设施设备', '水尺、爬梯、护栏等设施检查'),
+    ('缆道系统', '主索、绞车、锚碇等缆道检查'),
+    ('安全防护', '灭火器、电气线路安全检查'),
+    ('发电机', '发电机保养、运行检查'),
+]
 
 @app.route('/api/schemes/template')
 def download_scheme_template():
-    try: import openpyxl
-    except: return jsonify({'error':'openpyxl未安装'}),500
-    import os
-    from openpyxl.worksheet.datavalidation import DataValidation
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = '巡检方案模板'
-    headers = ['站点名称','分类','检查项','日方案','周方案','月方案']
-    for col, h in enumerate(headers,1):
-        ws.cell(row=1,column=col,value=h); ws.cell(row=1,column=col).font = openpyxl.styles.Font(bold=True)
-    # Collect all check items
+    """下载巡检方案导入模板（CSV格式）"""
+    import csv, io
+    output = io.StringIO()
+    output.write('\ufeff')
+    w = csv.writer(output)
+    w.writerow(['站点名称','分类','检查项','每日','每周','每月','每季度','每半年','每年'])
     all_cats = [c for c in DEFAULT_CHECK_ITEMS if DEFAULT_CHECK_ITEMS[c]]
-    all_items = []
     for cat in all_cats:
         for item in DEFAULT_CHECK_ITEMS[cat]:
-            all_items.append((cat, item))
-    
-    row = 2
-    for cat, item in all_items:
-        ws.cell(row=row,column=1,value=''); ws.cell(row=row,column=2,value=cat); ws.cell(row=row,column=3,value=item)
-        ws.cell(row=row,column=4,value='✓' if cat in DAY_ITEMS else '')
-        ws.cell(row=row,column=5,value='✓' if cat in WEEK_ITEMS else '')
-        ws.cell(row=row,column=6,value='✓' if cat in MONTH_ITEMS else '')
-        row += 1
-    
-    # Add data validation: dropdown for 分类 (column B) and 检查项 (column C)
-    # Write list sources to a hidden helper sheet for more reliable dropdowns
-    hs = wb.create_sheet('_list', 0); hs.sheet_state = 'hidden'
-    for idx, cat in enumerate(all_cats):
-        hs.cell(row=idx+1, column=1, value=cat)
-    for idx, (_, item) in enumerate(all_items):
-        hs.cell(row=idx+1, column=2, value=item)
-    
-    dv_cat = DataValidation(type="list", formula1=f'_list!$A$1:$A${len(all_cats)}', allow_blank=True)
-    dv_cat.error = '请从下拉列表中选择分类'
-    dv_cat.errorTitle = '输入错误'
-    ws.add_data_validation(dv_cat)
-    dv_cat.add(f'B2:B{row-1}')
-    
-    dv_item = DataValidation(type="list", formula1=f'_list!$B$1:$B${len(all_items)}', allow_blank=True)
-    dv_item.error = '请从下拉列表中选择检查项'
-    dv_item.errorTitle = '输入错误'
-    ws.add_data_validation(dv_item)
-    dv_item.add(f'C2:C{row-1}')
-    
-    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', '_template.xlsx')
-    wb.save(out_path)
-    return send_file(out_path, as_attachment=True, download_name='巡检方案导入模板.xlsx')
+            w.writerow([
+                '', cat, item,
+                '✓' if cat in DAY_ITEMS else '',
+                '✓' if cat in WEEK_ITEMS else '',
+                '✓' if cat in MONTH_ITEMS else '',
+                '✓' if cat in QUARTER_ITEMS else '',
+                '✓' if cat in HALF_YEAR_ITEMS else '',
+                '✓' if cat in YEAR_ITEMS else '',
+            ])
+    data = output.getvalue().encode('utf-8-sig')
+    output.close()
+    from flask import Response
+    from urllib.parse import quote
+    cd = f"attachment; filename=\"inspection_template.csv\"; filename*=UTF-8''{quote('巡检方案导入模板.csv')}"
+    return Response(data, mimetype='text/csv; charset=utf-8',
+                    headers={'Content-Disposition': cd})
 
 @app.route('/api/schemes/import', methods=['POST'])
 def import_schemes():
@@ -2561,41 +2932,325 @@ def delete_scheme_item_ep(item_id):
 
 @app.route('/api/inspections/auto-generate', methods=['POST'])
 def auto_generate_inspections():
+    """按频次分层的智能排程引擎（替代旧的日期轮询方案）
+    
+    请求参数（可选）：
+    - user_id: 指定某人的组（默认全部分配）
+    - period: daily/weekly/monthly (默认monthly)
+    - start_date: 起始日期（默认今天）
+    - end_date: 截止日期（默认+30天）
+    """
+    data = request.json or {}
+    period = data.get('period', 'monthly')
+    start_str = data.get('start_date', datetime.now().strftime('%Y-%m-%d'))
+    user_id = data.get('user_id')
+    force = data.get('force', False)  # 是否覆盖已存在的计划
+    
+    start = datetime.strptime(start_str, '%Y-%m-%d')
+    if period == 'daily':
+        end = start + timedelta(days=1)
+    elif period == 'weekly':
+        end = start + timedelta(days=7)
+    else:
+        end = start + timedelta(days=30)
+    end_str = end.strftime('%Y-%m-%d')
+    
+    # 频次映射：period -> 应包含的frequency_level
+    freq_map = {
+        'high': ['high'],
+        'mid': ['high', 'mid'],
+        'low': ['high', 'mid', 'low'],
+        'annual': ['high', 'mid', 'low', 'annual'],
+    }
+    applicable = freq_map.get(period, ['high', 'mid'])
+    
     with get_db() as db:
-        schemes = db.execute("SELECT * FROM inspection_schemes WHERE status='active'").fetchall()
-        generated = 0; today = datetime.now().strftime('%Y-%m-%d')
-        for scheme in schemes:
-            period = scheme['period']
-            if period == 'daily': pass
-            elif period == 'weekly' and datetime.now().weekday() != 0: continue
-            elif period == 'monthly' and datetime.now().day != 1: continue
-            elif period not in ('daily','weekly','monthly'): continue
-            existing = db.execute("SELECT id FROM inspection_plans WHERE site_id=? AND scheme_id=? AND start_date=?",(scheme['site_id'],scheme['id'],today)).fetchone()
-            if existing: continue
-            db.execute("INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,status,scheme_id) VALUES (?,?,?,?,?,?,?)",(scheme['name'],scheme['site_id'],period,today,today,'pending',scheme['id']))
+        rows = db.execute("""
+            SELECT si.*, s.name as scheme_name, s.site_id, s.period as speriod
+            FROM inspection_scheme_items si
+            JOIN inspection_schemes s ON si.scheme_id=s.id
+            WHERE s.status='active'
+            AND (si.frequency_level IS NULL OR si.frequency_level IN ({vals}))
+            ORDER BY s.site_id, si.sort_order
+        """.format(vals=','.join('?' * len(applicable))), applicable).fetchall()
+        
+        if not rows:
+            # 降级：从已有inspection_plans读取站点列表作为参考
+            plan_sites = db.execute("SELECT DISTINCT site_id FROM inspection_plans").fetchall()
+            if not plan_sites:
+                plan_sites = db.execute("SELECT id as site_id FROM sites WHERE id IN (1,5,108,193)").fetchall()
+            for ps in plan_sites:
+                # 先确保该站点有活跃方案
+                scheme = db.execute("SELECT id FROM inspection_schemes WHERE site_id=? AND status='active' LIMIT 1", (ps['site_id'],)).fetchone()
+                if not scheme:
+                    db.execute("INSERT INTO inspection_schemes (site_id,period,name) VALUES (?,?,?)",
+                               (ps['site_id'], period, f"站{ps['site_id']}巡检方案"))
+                    scheme_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+                else:
+                    scheme_id = scheme['id']
+                # 检查是否有带频次的方案项
+                existing_items = db.execute("SELECT id FROM inspection_scheme_items WHERE scheme_id=? AND frequency_level IS NOT NULL LIMIT 1", (scheme_id,)).fetchone()
+                if not existing_items:
+                    # 创建默认方案项
+                    db.execute("DELETE FROM inspection_scheme_items WHERE scheme_id=?", (scheme_id,))
+                    default_items = [
+                        ('水位观测', 'high', 1), ('设备状态确认', 'high', 2), ('传感器外观清洁', 'high', 3),
+                        ('数据通讯检查', 'high', 4), ('电池电压检查', 'mid', 5), ('太阳能板检查', 'mid', 6),
+                        ('机箱密封性检查', 'mid', 7), ('站院环境维护', 'mid', 8), ('翻斗雨量计校准', 'low', 9),
+                        ('水位计精度校验', 'low', 10), ('全面校准试验', 'annual', 11),
+                    ]
+                    for item_name, freq, order in default_items:
+                        if freq in applicable:
+                            db.execute("INSERT INTO inspection_scheme_items (scheme_id,category,check_item,frequency_level,sort_order) VALUES (?,'常规检查',?,?,?)",
+                                       (scheme_id, item_name, freq, order))
+                rows.extend(db.execute("""
+                    SELECT si.*, s.name as scheme_name, s.site_id, s.period as speriod
+                    FROM inspection_scheme_items si
+                    JOIN inspection_schemes s ON si.scheme_id=s.id
+                    WHERE s.site_id=? AND s.status='active'
+                """, (ps['site_id'],)).fetchall() or [])
+        
+        if not rows:
+            return jsonify({'success': False, 'error': '没有活跃的巡检方案项，请先在方案中配置检查项', 'generated': 0})
+        
+        # 按site_id分组
+        site_groups = {}
+        for r in rows:
+            sid = r['site_id']
+            site_groups.setdefault(sid, []).append(r)
+        
+        # 获取所有运维人员及其站点分配
+        operators = db.execute("""
+            SELECT u.id, u.real_name FROM users u WHERE u.role='operator' ORDER BY u.id
+        """).fetchall()
+        
+        if user_id:
+            operators = [op for op in operators if op['id'] == user_id]
+        
+        generated = 0
+        for op in operators:
+            user_sites = db.execute("SELECT site_id FROM user_sites WHERE user_id=?", (op['id'],)).fetchall()
+            # 按站点打包：同一操作员的所有站点合并为一个计划
+            op_site_ids = [us['site_id'] for us in user_sites]
+            all_items = []
+            check_items_set = set()
+            for sid in op_site_ids:
+                items = site_groups.get(sid, [])
+                if not items:
+                    continue
+                all_items.append((sid, items))
+                for item in items:
+                    check_items_set.add(item['check_item'])
+            if not all_items:
+                continue
+            # 检查是否已存在该操作员该时段的计划
+            if not force:
+                exist = db.execute(
+                    "SELECT p.id FROM inspection_plans p JOIN plan_sites ps ON p.id=ps.plan_id WHERE ps.site_id IN ({}) AND p.start_date=? AND p.status='pending' LIMIT 1".format(
+                        ','.join('?' * len(op_site_ids))
+                    ), op_site_ids + [start_str]
+                ).fetchone()
+                if exist:
+                    continue
+            plan_name = f"{period}巡检-{op['real_name']}"
+            first_sid = op_site_ids[0] if op_site_ids else 0
+            db.execute("""
+                INSERT INTO inspection_plans (plan_name,site_id,type,start_date,end_date,status)
+                VALUES (?,?,?,?,?,?)
+            """, (plan_name, first_sid, period, start_str, end_str, 'pending'))
             plan_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-            items = db.execute("SELECT * FROM inspection_scheme_items WHERE scheme_id=? ORDER BY sort_order",(scheme['id'],)).fetchall()
-            for item in items:
-                db.execute("INSERT INTO inspection_tasks (plan_id,site_id,check_item) VALUES (?,?,?)",(plan_id,scheme['site_id'],item['check_item']))
-            generated += 1
+            # 写入所有站点到 plan_sites，并生成每个站点的检查项
+            for sid, items in all_items:
+                db.execute("INSERT OR IGNORE INTO plan_sites (plan_id, site_id) VALUES (?,?)", (plan_id, sid))
+                for item in items:
+                    db.execute("""
+                        INSERT INTO inspection_tasks (plan_id,site_id,check_item)
+                        VALUES (?,?,?)
+                    """, (plan_id, sid, item['check_item']))
+                generated += 1
+        
         db.commit()
-        return jsonify({'success':True,'generated':generated})
+        msg = f"已生成 {generated} 个巡检计划"
+        if generated == 0:
+            msg = "该时段计划已存在，无需重复生成"
+        return jsonify({'success': True, 'generated': generated, 'message': msg})
+
+
+# ===================== 移动巡检方案新增 API =====================
+
+@app.route('/api/inspections/skip', methods=['POST'])
+@login_required
+def skip_inspection_item():
+    """跳过某项检查（记录跳过原因）"""
+    data = request.json or {}
+    with get_db() as db:
+        db.execute("""
+            INSERT INTO inspection_skip_logs (plan_id,task_id,site_id,check_item,reason,skip_type)
+            VALUES (?,?,?,?,?,?)
+        """, (data.get('plan_id'), data.get('task_id'), data.get('site_id'),
+              data.get('check_item',''), data.get('reason',''), data.get('skip_type','user')))
+        # 更新跳过计数
+        exist = db.execute(
+            "SELECT id, skip_count FROM inspection_skip_logs WHERE plan_id=? AND check_item=? ORDER BY id DESC LIMIT 1",
+            (data['plan_id'], data['check_item'])
+        ).fetchone()
+        if exist:
+            db.execute("UPDATE inspection_skip_logs SET skip_count=skip_count+1 WHERE id=?", (exist['id'],))
+        db.commit()
+        return jsonify({'success': True, 'message': '已记录跳过'})
+
+@app.route('/api/inspections/skip/history')
+@login_required
+def get_skip_history():
+    """查看跳过记录"""
+    site_id = request.args.get('site_id', type=int)
+    plan_id = request.args.get('plan_id', type=int)
+    with get_db() as db:
+        q = "SELECT * FROM inspection_skip_logs WHERE 1=1"
+        params = []
+        if site_id:
+            q += " AND site_id=?"
+            params.append(site_id)
+        if plan_id:
+            q += " AND plan_id=?"
+            params.append(plan_id)
+        q += " ORDER BY created_at DESC LIMIT 50"
+        rows = db.execute(q, params).fetchall()
+        return jsonify([dict(r) for r in rows])
+
+@app.route('/api/calibration-templates')
+@login_required
+def get_calibration_templates():
+    """获取校准模板列表"""
+    device_type = request.args.get('device_type', '')
+    with get_db() as db:
+        q = "SELECT * FROM calibration_templates WHERE 1=1"
+        params = []
+        if device_type:
+            q += " AND device_type=?"
+            params.append(device_type)
+        q += " ORDER BY sort_order, category"
+        rows = db.execute(q, params).fetchall()
+        return jsonify([dict(r) for r in rows])
+
+@app.route('/api/calibration-templates', methods=['POST'])
+@login_required
+def create_calibration_template():
+    """创建校准模板"""
+    data = request.json or {}
+    with get_db() as db:
+        db.execute("""
+            INSERT INTO calibration_templates (device_type,template_name,fields,calculations,thresholds,category,sort_order)
+            VALUES (?,?,?,?,?,?,?)
+        """, (data['device_type'], data['template_name'],
+              data.get('fields','[]'), data.get('calculations','[]'),
+              data.get('thresholds','[]'), data.get('category',''), data.get('sort_order',0)))
+        db.commit()
+        return jsonify({'success': True, 'id': db.execute("SELECT last_insert_rowid()").fetchone()[0]})
+
+@app.route('/api/inspections/photo-types', methods=['GET', 'POST'])
+@login_required
+def manage_photo_types():
+    """管理照片类型配置"""
+    with get_db() as db:
+        if request.method == 'POST':
+            data = request.json or {}
+            db.execute("""
+                INSERT INTO inspection_photo_types (plan_id,site_type,photo_type,label,min_count,sort_order)
+                VALUES (?,?,?,?,?,?)
+            """, (data.get('plan_id'), data.get('site_type',''), data['photo_type'],
+                  data['label'], data.get('min_count',1), data.get('sort_order',0)))
+            db.commit()
+            return jsonify({'success': True})
+        else:
+            plan_id = request.args.get('plan_id', type=int)
+            site_type = request.args.get('site_type', '')
+            q = "SELECT * FROM inspection_photo_types WHERE 1=1"
+            params = []
+            if plan_id:
+                q += " AND plan_id=?"
+                params.append(plan_id)
+            if site_type:
+                q += " AND site_type=?"
+                params.append(site_type)
+            q += " ORDER BY sort_order"
+            rows = db.execute(q, params).fetchall()
+            return jsonify([dict(r) for r in rows])
+
+
+# ===================== 通知系统 API =====================
+
+@app.route('/api/notifications')
+@login_required
+def get_notifications():
+    """获取当前用户的通知列表"""
+    user = g.current_user
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 50, type=int)
+    offset = (page - 1) * limit
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (user['id'], limit, offset)
+        ).fetchall()
+        unread = db.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0",
+            (user['id'],)
+        ).fetchone()[0]
+        return jsonify({'notifications': [dict(r) for r in rows], 'unread_count': unread})
+
+@app.route('/api/notifications/unread-count')
+@login_required
+def unread_notification_count():
+    """获取未读通知数量"""
+    user = g.current_user
+    with get_db() as db:
+        cnt = db.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0",
+            (user['id'],)
+        ).fetchone()[0]
+        return jsonify({'count': cnt})
+
+@app.route('/api/notifications/<int:nid>/read', methods=['PUT'])
+@login_required
+def mark_notification_read(nid):
+    """标记单条通知为已读"""
+    user = g.current_user
+    with get_db() as db:
+        db.execute(
+            "UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?",
+            (nid, user['id'])
+        )
+        db.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/notifications/read-all', methods=['PUT'])
+@login_required
+def mark_all_notifications_read():
+    """标记所有通知为已读"""
+    user = g.current_user
+    with get_db() as db:
+        db.execute(
+            "UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0",
+            (user['id'],)
+        )
+        db.commit()
+        return jsonify({'success': True})
+
 
 # --- Workorder management ---
 @app.route('/api/workorders/<order_no>', methods=['DELETE'])
 def delete_workorder(order_no):
-    """删除工单（仅支持待受理或已关闭的工单）"""
+    """删除工单（仅支持待受理或已完成的工单）"""
     with get_db() as db:
         cur = db.execute('SELECT status FROM work_orders WHERE order_no=?', (order_no,)).fetchone()
         if not cur:
             return jsonify({'error': 'not found'}), 404
         if cur['status'] not in ('pending', 'closed'):
-            return jsonify({'error': '只能删除待受理或已关闭的工单'}), 400
+            return jsonify({'error': '只能删除待受理或已完成的工单'}), 400
         db.execute('DELETE FROM work_orders WHERE order_no=?', (order_no,))
         db.execute("DELETE FROM timeline_events WHERE source_type='workorder' AND source_id=?", (order_no,))
         db.commit()
-        return jsonify({'success': True})
-
 # --- Maintenance Templates ---
 @app.route('/api/maintenance/templates')
 def get_maintenance_templates():
@@ -2611,9 +3266,7 @@ def get_maintenance_templates():
                 except:
                     d['check_items'] = []
             result.append(d)
-        return jsonify(result)
-
-# --- Maintenance Plans ---
+        return jsonify(result)# --- Maintenance Plans ---
 @app.route('/api/maintenance/plans')
 def get_maintenance_plans():
     with get_db() as db:
@@ -2663,7 +3316,6 @@ def create_maintenance_plan():
                 (data['site_id'], data['plan_name'], data['category'], data.get('frequency','monthly'), data.get('due_date'), data.get('assignee'))
             )
         db.commit()
-        return jsonify({'success': True, 'plan_id': cur.lastrowid})
 
 @app.route('/api/maintenance/plans/<int:plan_id>/complete', methods=['PUT'])
 def complete_maintenance_plan(plan_id):
@@ -2720,7 +3372,6 @@ def update_maintenance_plan(plan_id):
         params.append(plan_id)
         db.execute(f"UPDATE maintenance_plans SET {','.join(updates)} WHERE id=?", params)
         db.commit()
-        return jsonify({'success': True})
 
 @app.route('/api/maintenance/plans/<int:plan_id>', methods=['DELETE'])
 def delete_maintenance_plan(plan_id):
@@ -2744,7 +3395,6 @@ def review_maintenance_plan(plan_id):
                    ('maintenance', plan_id, 'reviewed', operator, f'审核结果:{review_result} 意见:{review_comment}'))
         db.commit()
         return jsonify({'success': True})
-
 # --- Water Level Checks (Phase A-3) ---
 @app.route('/api/water-level/checks')
 def get_water_level_checks():
@@ -3689,6 +4339,78 @@ def api_device_detail(device_id):
     return jsonify({'device': dict(dev), 'logs': [dict(l) for l in logs]})
 
 
+# --- 设备回收 ---
+
+@app.route('/api/device-recycle')
+@login_required
+def api_device_recycle_list():
+    """设备回收记录列表，支持按设备/站点搜索"""
+    search = request.args.get('search', '').strip()
+    status = request.args.get('status', '').strip()
+    with get_db() as db:
+        sql = "SELECT * FROM device_recycle WHERE 1=1"
+        params = []
+        if search:
+            sql += " AND (device_code LIKE ? OR device_name LIKE ? OR site_name LIKE ? OR destination LIKE ?)"
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+        if status:
+            sql += " AND status=?"
+            params.append(status)
+        sql += " ORDER BY created_at DESC"
+        rows = db.execute(sql, params).fetchall()
+        return jsonify([dict(r) for r in rows])
+
+@app.route('/api/device-recycle', methods=['POST'])
+@login_required
+def api_device_recycle_create():
+    """登记设备回收"""
+    data = request.json
+    with get_db() as db:
+        # 验证设备是否存在
+        device_id = data.get('device_id')
+        device = db.execute("SELECT * FROM device_shadows WHERE id=?", (device_id,)).fetchone()
+        if not device:
+            return jsonify({'error': '设备不存在'}), 404
+        # 插入回收记录
+        site = db.execute("SELECT name FROM sites WHERE id=?", (device['site_id'],)).fetchone()
+        db.execute("""
+            INSERT INTO device_recycle (device_id, device_code, device_name, device_type,
+                site_id, site_name, recycle_date, reason, destination, operator, remark, status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (device_id, device['device_code'], device['device_name'], device['device_type'],
+              device['site_id'], site['name'] if site else '',
+              data.get('recycle_date', ''), data.get('reason', ''),
+              data.get('destination', ''), data.get('operator', ''),
+              data.get('remark', ''), data.get('status', 'recycled')))
+        # 同时将设备状态设为 offline（已回收）
+        db.execute("UPDATE device_shadows SET status='offline' WHERE id=?", (device_id,))
+        # 记录时间线事件
+        db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                   ('device', device_id, 'recycled', data.get('operator', '系统'),
+                    f'设备回收-{device["device_name"]}({device["device_code"]})->{data.get("destination","")}'))
+        db.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/device-recycle/<int:rec_id>', methods=['PUT'])
+@login_required
+def api_device_recycle_update(rec_id):
+    """更新回收记录（如去向变更）"""
+    data = request.json
+    with get_db() as db:
+        fields = []
+        params = []
+        for f in ['destination', 'remark', 'status', 'reason', 'operator']:
+            if f in data:
+                fields.append(f"{f}=?")
+                params.append(data[f])
+        if fields:
+            params.append(rec_id)
+            db.execute(f"UPDATE device_recycle SET {','.join(fields)} WHERE id=?", params)
+            db.commit()
+        return jsonify({'success': True})
+
+
 # --- 备件库存 ---
 
 @app.route('/api/parts/inventory')
@@ -3980,28 +4702,18 @@ if __name__ == '__main__':
         try:
             if os.environ.get('SKIP_SEED') != '1':
                 generate_sensor_data()
+                time.sleep(0.3)
         except Exception as e:
             print(f'[Seed] 初始数据生成跳过: {e}')
-    # 预置少量固定离线站点（在初始数据生成之后执行，确保不被覆盖）
-    # 环境变量 SKIP_PRESET_OFFLINE=1 可跳过（用于 E2E 测试使用自定义种子数据）
-    if os.environ.get('SKIP_PRESET_OFFLINE') == '1':
-        print("[Seed] 跳过预设离线站点（E2E测试模式）")
-    else:
-        try:
-            with get_db() as db:
-                for sid in [5, 108, 193]:
-                    db.execute("UPDATE device_shadows SET status='offline', last_data_time=NULL WHERE site_id=?", (sid,))
-                    site = db.execute("SELECT name FROM sites WHERE id=?", (sid,)).fetchone()
-                    if site:
-                        print(f"[Seed] 预设离线站点: {site['name']} (id={sid})")
-                    # 生成离线告警
-                    devs = db.execute("SELECT device_name, device_code FROM device_shadows WHERE site_id=?", (sid,)).fetchall()
-                    for dev in devs:
-                        create_alert_internal(db, sid, 'device_status', 0, 'yellow',
-                            f"设备离线: {dev['device_name']} ({dev['device_code']}) · {site['name']}")
-            db.commit()
-        except Exception as e:
-            print(f"[Seed] 预设离线站点跳过: {e}")
+    # 演示数据层：叠加自洽的告警-工单联动数据（替换旧的预设离线+清理+补充逻辑）
+    try:
+        from seed_demo import generate as demo_generate
+        demo_generate()
+    except Exception as e:
+        import traceback
+        print(f"[Seed] 演示数据生成失败: {e}")
+        traceback.print_exc()
+    # 清理过期已办结告警（保留最近7天，档案卡片需要7天历史）
     # 清理过期已办结告警（保留最近7天，档案卡片需要7天历史）
     try:
         with get_db() as db:

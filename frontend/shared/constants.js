@@ -4,11 +4,11 @@
 // 站点类型映射
 var TM={rainfall:'雨量站',water_level:'水位站',hydrology:'水文站',soil_moisture:'墒情站',evaporation:'蒸发站',groundwater:'地下水站',station_yard:'站院'};
 
-// 工单状态映射（8种）
-var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已关闭'};
+// 工单状态映射（同事版本：待受理→已受理→已派发→处置中→审核中→已完成）
+var SM={pending:'待受理',accepted:'已受理',generated:'已生成',dispatched:'已派发',in_progress:'处置中',reviewing:'审核中',acceptance:'验收中',closed:'已完成'};
 
-// 工单级别映射
-var LM={normal:'一般',urgent:'紧急',critical:'重大'};
+// 工单级别映射（支持告警颜色映射到工单级别，兼容历史数据）
+var LM={normal:'一般',urgent:'紧急',critical:'重大', red:'重大', orange:'紧急', yellow:'一般', blue:'一般'};
 
 // 工单来源映射
 var SL={auto:'自动',patrol:'巡查',manual:'人工',superior:'上级',hotline:'热线'};
