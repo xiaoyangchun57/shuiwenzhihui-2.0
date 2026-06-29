@@ -6,8 +6,6 @@ function switchInspConfigTab(t,el){
   var p=document.getElementById('ic-'+t);
   if(p)p.style.display='block';
   if(t==='freq')loadFreqConfig();
-  else if(t==='group')loadGroupConfig();
-  else if(t==='completion')loadCompletionBoard();
   else if(t==='skip')loadSkipLogs();
 }
 async function _loadInspConfig(){switchInspConfigTab('freq',document.querySelector('#insp-config-panel .tab-btn')||document.querySelector('#panel-insp-config .tab-btn'))}
@@ -119,13 +117,77 @@ async function doSchedule(){
       showToast(r.message||'生成完成','success');
       document.querySelectorAll('.modal-overlay').forEach(function(e){e.remove()});
       loadFreqConfig();
-      loadGroupConfig();
-      loadCompletionBoard();
     }else{
       showToast('生成失败: '+(r&&r.error||'未知错误'),'error');
     }
   }catch(e){showToast('生成失败: '+e.message,'error')}
   if(btn){btn.disabled=false;btn.textContent='开始生成'}
+}
+
+// --- 计划生成（V2三层架构） ---
+async function loadGeneratePanel(){
+  var el=document.getElementById('ic-generate-body');if(!el)return;
+  el.innerHTML='<div style="text-align:center;color:#5ea8c8;padding:20px">加载中...</div>';
+  try{
+    var stats=await af('/inspection-v2/stats')||{};
+    var html='<div style="display:flex;gap:10px;margin-bottom:14px">'
+      +'<div style="flex:1;padding:12px;background:rgba(255,71,96,0.08);border:1px solid rgba(255,71,96,0.2);border-radius:6px;text-align:center">'
+      +'<div style="font-size:24px;color:#ff4760;font-weight:bold">'+(stats.due_items||0)+'</div>'
+      +'<div style="font-size:11px;color:#b08090;margin-top:2px">到期检查项</div></div>'
+      +'<div style="flex:1;padding:12px;background:rgba(255,71,96,0.05);border:1px solid rgba(255,71,96,0.15);border-radius:6px;text-align:center">'
+      +'<div style="font-size:24px;color:#ff6b80;font-weight:bold">'+(stats.overdue_items||0)+'</div>'
+      +'<div style="font-size:11px;color:#b08090;margin-top:2px">逾期检查项</div></div>'
+      +'<div style="flex:1;padding:12px;background:rgba(255,160,64,0.08);border:1px solid rgba(255,160,64,0.2);border-radius:6px;text-align:center">'
+      +'<div style="font-size:24px;color:#ffa040;font-weight:bold">'+(stats.upcoming_items||0)+'</div>'
+      +'<div style="font-size:11px;color:#b09060;margin-top:2px">临近到期(7天)</div></div>'
+      +'<div style="flex:1;padding:12px;background:rgba(0,200,180,0.06);border:1px solid rgba(0,200,180,0.12);border-radius:6px;text-align:center">'
+      +'<div style="font-size:24px;color:#00e0c0;font-weight:bold">'+(stats.total_schedules||0)+'</div>'
+      +'<div style="font-size:11px;color:#4a8aaa;margin-top:2px">总排程数</div></div></div>';
+    html+='<div style="padding:12px;background:rgba(0,20,30,0.3);border:1px solid rgba(0,200,180,0.08);border-radius:6px;margin-bottom:14px">'
+      +'<div style="font-size:13px;color:#b0d4ef;margin-bottom:8px">生成巡检计划</div>'
+      +'<div style="font-size:11px;color:#4a8aaa;margin-bottom:10px">根据巡检配置和排程数据，按负责人打包生成巡检计划。到期项和临近到期项将被纳入计划。</div>'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+      +'<label style="color:#5ea8c8;font-size:12px">提前提醒天数:</label>'
+      +'<input id="v2-remind-days" type="number" value="1" min="0" max="30" style="width:60px;padding:6px 8px;border:1px solid rgba(0,200,180,0.2);border-radius:3px;background:rgba(0,20,30,0.6);color:#d0e8ff">'
+      +'<button class="btn btn-primary" onclick="doGenerateV2()">生成巡检计划</button>'
+      +'</div>'
+      +'<div id="v2-gen-result" style="margin-top:10px"></div>'
+      +'</div>';
+    html+='<div style="padding:10px;background:rgba(0,20,30,0.3);border:1px solid rgba(0,200,180,0.08);border-radius:6px">'
+      +'<div style="font-size:12px;color:#b0d4ef;margin-bottom:6px">系统概览</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px">'
+      +'<div style="color:#5ea8c8">方案模板: <span style="color:#00e0c0;font-weight:500">'+(stats.total_templates||0)+'</span> 个</div>'
+      +'<div style="color:#5ea8c8">配置规则: <span style="color:#00e0c0;font-weight:500">'+(stats.total_configs||0)+'</span> 条</div>'
+      +'<div style="color:#5ea8c8">已生成计划: <span style="color:#00e0c0;font-weight:500">'+(stats.total_plans||0)+'</span> 个</div>'
+      +'</div></div>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div style="color:#ff4760;padding:20px">加载失败: '+e.message+'</div>'}
+}
+async function doGenerateV2(){
+  var days=parseInt(document.getElementById('v2-remind-days').value)||1;
+  var resultEl=document.getElementById('v2-gen-result');
+  if(resultEl)resultEl.innerHTML='<div style="color:#5ea8c8;font-size:12px">生成中...</div>';
+  try{
+    var r=await afP('/inspection-v2/plans/generate',{remind_days:days,period:'daily'});
+    if(r&&r.success){
+      var msg='';
+      if(r.plans_created>0){
+        msg='<div style="padding:10px;background:rgba(0,200,180,0.08);border:1px solid rgba(0,200,180,0.2);border-radius:4px;font-size:12px;color:#00e0c0">'
+          +'已生成 <b>'+r.plans_created+'</b> 个计划，共 <b>'+r.total_items+'</b> 个检查项，涉及 <b>'+r.due_sites+'</b> 个站点'
+          +'</div>';
+      }else{
+        msg='<div style="padding:10px;background:rgba(255,160,64,0.08);border:1px solid rgba(255,160,64,0.2);border-radius:4px;font-size:12px;color:#ffa040">'
+          +(r.message||'没有到期的检查项')+'</div>';
+      }
+      if(resultEl)resultEl.innerHTML=msg;
+      showToast('计划生成完成','success');
+      loadGeneratePanel();
+    }else{
+      if(resultEl)resultEl.innerHTML='<div style="color:#ff4760;font-size:12px">生成失败: '+(r&&r.error||'未知错误')+'</div>';
+    }
+  }catch(e){
+    if(resultEl)resultEl.innerHTML='<div style="color:#ff4760;font-size:12px">生成失败: '+e.message+'</div>';
+  }
 }
 
 // --- 2. 人员分组配置 ---

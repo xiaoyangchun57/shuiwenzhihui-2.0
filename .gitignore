@@ -34,6 +34,9 @@ push_meta.json
 *.log
 check_*.py
 find_bad_brace.py
+_bugfix_report.md
+_syntax_check*.py
+prepare_static_data.py
 
 # Project-specific excludes
 *.bak

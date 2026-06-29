@@ -73,6 +73,54 @@ const spareSpecMap = {
   '百叶箱配件': 'PHZ-KIT',
 };
 
+// 实际备件名称→规格型号映射（匹配数据库中的备件名称）
+const partSpecMap = {
+  '数据采集终端RTU': 'RTU-600',
+  '风速风向仪': 'WA-200',
+  '不锈钢水位计支架': 'SS-WL-BRACKET',
+  '太阳能板(20W)': 'SP-20W',
+  'GPRS通信模块': '4G-DTU-100',
+  '温湿度传感器': 'TH-100',
+  '蓄电池(12V)': 'BAT-12V38AH',
+  '雨量筒翻斗': 'SL3-BUCKET',
+  '防雷模块': 'SPD-24V',
+  '信号电缆(10m)': 'CABLE-10M',
+  '水位计传感器': 'PWL-200A',
+  '水位计密封圈': 'OR-80',
+};
+
+// 实际备件名称→适用设备类型映射
+const partDeviceMap = {
+  '数据采集终端RTU': ['hydro_collector'],
+  '风速风向仪': ['anemometer', 'weather_screen'],
+  '不锈钢水位计支架': ['water_level_meter', 'radar_water_level'],
+  '太阳能板(20W)': ['hydro_collector', 'rainfall_gauge'],
+  'GPRS通信模块': ['hydro_collector'],
+  '温湿度传感器': ['weather_screen'],
+  '蓄电池(12V)': ['hydro_collector', 'rainfall_gauge', 'water_level_meter'],
+  '雨量筒翻斗': ['rainfall_meter', 'rainfall_gauge'],
+  '防雷模块': ['hydro_collector', 'rainfall_gauge', 'water_level_meter'],
+  '信号电缆(10m)': ['hydro_collector', 'water_level_meter', 'rainfall_gauge'],
+  '水位计传感器': ['water_level_meter', 'pressure_water_level'],
+  '水位计密封圈': ['water_level_meter', 'pressure_water_level'],
+};
+
+// 实际备件名称→存放位置映射
+const partLocationMap = {
+  '数据采集终端RTU': 'A区-柜1-层2',
+  '风速风向仪': 'B区-柜3-层1',
+  '不锈钢水位计支架': 'C区-架2-层1',
+  '太阳能板(20W)': 'D区-架1-层3',
+  'GPRS通信模块': 'A区-柜2-层1',
+  '温湿度传感器': 'B区-柜1-层2',
+  '蓄电池(12V)': 'D区-架2-层1',
+  '雨量筒翻斗': 'C区-柜1-层1',
+  '防雷模块': 'A区-柜3-层3',
+  '信号电缆(10m)': 'D区-架3-层2',
+  '水位计传感器': 'B区-柜2-层1',
+  '水位计密封圈': 'C区-柜2-层2',
+};
+
 const spareMfrMap = {
   '翻斗雨量计核心组件': { name: '南京水文仪器有限公司', tel: '025-84312567' },
   '雷达水位计探头': { name: '成都测测科技有限公司', tel: '028-85193456' },
@@ -250,14 +298,33 @@ function DeviceLedgerTab() {
     },
     {
       title: '设备型号',
-      dataIndex: 'device_type',
-      key: 'device_type',
-      width: 150,
+      dataIndex: 'device_model',
+      key: 'device_model',
+      width: 120,
       ellipsis: true,
-      render: (val) => {
-        const model = deviceModelMap[val] || '';
+      render: (val, record) => {
+        const model = val || deviceModelMap[record.device_type] || '';
         return <Text style={{ fontSize: 13 }}>{model || '-'}</Text>;
       },
+    },
+    {
+      title: '厂商',
+      dataIndex: 'manufacturer',
+      key: 'manufacturer',
+      width: 150,
+      ellipsis: true,
+      render: (val, record) => {
+        const mfrObj = deviceMfrMap[record.device_type];
+        const mfr = val || (mfrObj ? mfrObj.name : '') || '';
+        return <Text style={{ fontSize: 13 }}>{mfr || '-'}</Text>;
+      },
+    },
+    {
+      title: '安装日期',
+      dataIndex: 'install_date',
+      key: 'install_date',
+      width: 110,
+      render: (val) => <Text style={{ fontSize: 13 }}>{val || '-'}</Text>,
     },
     {
       title: '状态',
@@ -390,16 +457,9 @@ function DeviceLedgerTab() {
               <Descriptions.Item label="设备编码">{viewingDevice.device_code || viewingDevice.code || '-'}</Descriptions.Item>
               <Descriptions.Item label="设备名称">{viewingDevice.device_name || '-'}</Descriptions.Item>
               <Descriptions.Item label="设备类型">{deviceTypeMap[viewingDevice.device_type] || viewingDevice.device_type || '-'}</Descriptions.Item>
-              <Descriptions.Item label="设备型号">{deviceModelMap[viewingDevice.device_type] || '-'}</Descriptions.Item>
-              {(() => {
-                const mfr = deviceMfrMap[viewingDevice.device_type];
-                return mfr ? (
-                  <>
-                    <Descriptions.Item label="厂家名称">{mfr.name}</Descriptions.Item>
-                    <Descriptions.Item label="厂家电话">{mfr.tel}</Descriptions.Item>
-                  </>
-                ) : null;
-              })()}
+              <Descriptions.Item label="设备型号">{viewingDevice.device_model || deviceModelMap[viewingDevice.device_type] || '-'}</Descriptions.Item>
+              <Descriptions.Item label="生产厂家">{viewingDevice.manufacturer || deviceMfrMap[viewingDevice.device_type]?.name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="安装日期">{viewingDevice.install_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属站点">{viewingDevice.site_name || '-'}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 {(() => {
@@ -652,26 +712,30 @@ function SparePartsTab() {
   const siteOptions = sites.map(s => ({ value: s.id, label: s.name || s.code }));
 
   const columns = [
-    { title: '备件编号', dataIndex: 'part_code', key: 'part_code', width: 130,
+    { title: '备件编号', dataIndex: 'part_code', key: 'part_code', width: 110,
       render: (text, r) => <Text strong style={{ color: tokens.colorPrimary }}>{text || `#${r.id}`}</Text> },
     { title: '备件名称', dataIndex: 'part_name', key: 'part_name', width: 140, ellipsis: true },
-    { title: '规格型号', dataIndex: 'spec', key: 'spec', width: 140, ellipsis: true,
-      render: (v, r) => v || spareSpecMap[r.part_name] || '-' },
-    { title: '库存数量', dataIndex: 'quantity', key: 'quantity', width: 100, align: 'center',
+    { title: '规格型号', dataIndex: 'spec', key: 'spec', width: 130, ellipsis: true,
+      render: (v, r) => v || partSpecMap[r.part_name] || spareSpecMap[r.part_name] || '-' },
+    { title: '库存数量', dataIndex: 'quantity', key: 'quantity', width: 110, align: 'center',
       render: (val, r) => {
         const min = r.min_quantity || 5;
         const isLow = val != null && val < min;
-        return <Text style={{ color: isLow ? tokens.colorError : tokens.colorText, fontWeight: isLow ? 600 : 400 }}>{val ?? '-'} {isLow && <Tag color="red" style={{ marginLeft: 4 }}>低库存</Tag>}</Text>;
+        return <Text style={{ color: isLow ? tokens.colorError : tokens.colorText, fontWeight: isLow ? 600 : 400 }}>{val ?? '-'} {isLow && <Tag color="red" style={{ marginLeft: 4, fontSize: 11 }}>低库存</Tag>}</Text>;
       }},
-    { title: '存放位置', dataIndex: 'location', key: 'location', width: 130, render: (v) => v || '-' },
-    { title: '适用设备', dataIndex: 'device_types', key: 'device_types', width: 180,
-      render: (val) => Array.isArray(val)
-        ? <Space size={4} wrap>{val.map(t => <Tag key={t}>{deviceTypeMap[t] || t}</Tag>)}</Space>
-        : (val || '-') },
-    { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 160, render: (v) => v || '-' },
-    { title: '操作', key: 'actions', width: 180,
+    { title: '存放位置', dataIndex: 'location', key: 'location', width: 120,
+      render: (v, r) => v || partLocationMap[r.part_name] || '-' },
+    { title: '适用设备', dataIndex: 'device_types', key: 'device_types', width: 160,
+      render: (val, r) => {
+        const devices = Array.isArray(val) ? val : (partDeviceMap[r.part_name] || []);
+        return devices.length > 0
+          ? <Space size={4} wrap>{devices.map(t => <Tag key={t} style={{ fontSize: 11 }}>{deviceTypeMap[t] || t}</Tag>)}</Space>
+          : '-';
+      }},
+    { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 150, render: (v) => v || '-' },
+    { title: '操作', key: 'actions', width: 220,
       render: (_, r) => (
-        <Space size={4} wrap>
+        <Space size={0} wrap>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleView(r)}>详情</Button>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(r)}>编辑</Button>
           <Button type="link" size="small" style={{ color: '#52c41a' }} icon={<ArrowUpOutlined />} onClick={() => handleStockOpen(r, 'in')}>入库</Button>

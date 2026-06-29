@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import {
   Table, Card, Input, Select, Button, Space, Tag, Badge, Modal,
-  Typography, message, Empty, Form, DatePicker,
+  Typography, message, Empty, Form, DatePicker, Divider,
   Row, Col, Statistic, Descriptions, Timeline, Drawer,
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined, ReloadOutlined, EyeOutlined,
   EditOutlined, DeleteOutlined, ExclamationCircleOutlined,
   SendOutlined, FileTextOutlined, ClockCircleOutlined, ToolOutlined, CheckCircleOutlined,
-  InboxOutlined, SwapOutlined,
+  InboxOutlined, SwapOutlined, CheckOutlined, CloseOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/api';
 import { useTheme } from '../../hooks/useTheme';
@@ -441,10 +441,10 @@ export default function WorkOrdersPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 220,
+      width: 280,
       fixed: 'right',
       render: (_, record) => (
-        <Space size={4} wrap>
+        <Space size={0} split={<Divider type="vertical" style={{ margin: '0 2px', borderColor: tokens.colorBorderSecondary }} />}>
           <Button type="link" size="small" icon={<EyeOutlined />}
             onClick={() => handleView(record)}>
             查看
@@ -453,28 +453,32 @@ export default function WorkOrdersPage() {
             onClick={() => handleEdit(record)}>
             编辑
           </Button>
+          <Button type="link" size="small" icon={<DeleteOutlined />}
+            danger
+            onClick={() => handleDelete(record)}>
+            删除
+          </Button>
           {record.status === 'in_progress' && (
-            <Button type="link" size="small" style={{ color: '#722ed1' }}
+            <Button type="link" size="small" icon={<SendOutlined />}
+              style={{ color: '#722ed1' }}
               onClick={() => handleSubmitReview(record)}>
               提交核验
             </Button>
           )}
           {record.status === 'reviewing' && (
             <>
-              <Button type="link" size="small" style={{ color: tokens.colorSuccess }}
+              <Button type="link" size="small" icon={<CheckOutlined />}
+                style={{ color: tokens.colorSuccess }}
                 onClick={() => handleApprove(record)}>
                 通过
               </Button>
-              <Button type="link" size="small" danger
+              <Button type="link" size="small" icon={<CloseOutlined />}
+                danger
                 onClick={() => handleReject(record)}>
                 退回
               </Button>
             </>
           )}
-          <Button type="link" size="small" danger icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record)}>
-            删除
-          </Button>
         </Space>
       ),
     },

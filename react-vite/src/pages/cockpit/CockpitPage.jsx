@@ -325,19 +325,25 @@ function createMarkerIcon(type, markerStatus) {
 // ---------------------------------------------------------------------------
 // Sub-component: fit map to markers
 // ---------------------------------------------------------------------------
-function MapAutoFitter({ sites }) {
+function MapAutoFitter({ sites, resetKey }) {
   const map = useMap();
   const fitted = useRef(false);
+  const prevResetKey = useRef(resetKey);
 
   useEffect(() => {
-    if (fitted.current || !sites || sites.length === 0) return;
+    if (!sites || sites.length === 0) return;
     const validSites = sites.filter((s) => s.lat && s.lng);
     if (validSites.length === 0) return;
 
-    const bounds = L.latLngBounds(validSites.map((s) => [s.lat, s.lng]));
-    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
-    fitted.current = true;
-  }, [map, sites]);
+    // Only fit bounds on initial render or when resetKey changes (user clicks reset)
+    // Do NOT re-fit on every sites data refresh
+    if (!fitted.current || prevResetKey.current !== resetKey) {
+      const bounds = L.latLngBounds(validSites.map((s) => [s.lat, s.lng]));
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+      fitted.current = true;
+      prevResetKey.current = resetKey;
+    }
+  }, [map, resetKey]);
 
   return null;
 }
@@ -394,6 +400,7 @@ export default function CockpitPage() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pinnedSites, setPinnedSites] = useState(new Set());
+  const [mapResetKey, setMapResetKey] = useState(0);
 
   // Map reference and popup control
   const mapRef = useRef(null);
@@ -404,17 +411,49 @@ export default function CockpitPage() {
   useEffect(() => {
     if (!flyTarget || !popupOpenSiteId || !mapRef.current) return;
     const map = mapRef.current;
-    const onMoveEnd = () => {
-      setTimeout(() => {
-        // Open the popup for the target site (don't close others - user may have opened them manually)
-        const marker = markersRef.current.get(popupOpenSiteId);
-        if (marker) {
-          marker.openPopup();
-        }
-      }, 500);
+    let retryCount = 0;
+    const maxRetries = 5;
+
+    // Try to open popup, with retry if marker is not ready yet
+    const openPopupForSite = () => {
+      const marker = markersRef.current.get(popupOpenSiteId);
+      if (marker) {
+        marker.openPopup();
+        return true;
+      }
+      return false;
     };
+
+    // Listen for moveend event (fires after fly-to completes)
+    const onMoveEnd = () => {
+      // Try to open popup, retry if marker not ready
+      const tryOpen = () => {
+        if (!openPopupForSite() && retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(tryOpen, 200);
+        }
+      };
+      setTimeout(tryOpen, 200);
+    };
+
     map.on('moveend', onMoveEnd);
-    return () => map.off('moveend', onMoveEnd);
+
+    // Also try after a delay in case map is already at position
+    setTimeout(() => {
+      if (!openPopupForSite()) {
+        const tryOpen = () => {
+          if (!openPopupForSite() && retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(tryOpen, 200);
+          }
+        };
+        tryOpen();
+      }
+    }, 1000);
+
+    return () => {
+      map.off('moveend', onMoveEnd);
+    };
   }, [flyTarget, popupOpenSiteId]);
 
   // ---- Inject CSS ----
@@ -657,9 +696,8 @@ export default function CockpitPage() {
   const typeFilterOptions = useMemo(() => {
     const opts = [{ label: '全部', value: FILTER_ALL }];
     Object.entries(stationTypeMap).forEach(([key, label]) => {
-      const count = sites.filter((s) => s.type === key).length;
       opts.push({
-        label: `${label}(${count})`,
+        label: label,
         value: key,
       });
     });
@@ -692,9 +730,9 @@ export default function CockpitPage() {
 
   const handleLocateAll = useCallback(() => {
     setFlyTarget(null);
-    // Reset the fitter by briefly modifying sites reference (force re-render)
     setTypeFilter(FILTER_ALL);
     setSearchText('');
+    setMapResetKey((k) => k + 1);
   }, []);
 
   // ---- Panel background styles ----
@@ -844,7 +882,7 @@ export default function CockpitPage() {
           subdomains={AMAP_SUBDOMAINS}
           maxZoom={18}
         />
-        <MapAutoFitter sites={filteredSites} />
+        <MapAutoFitter sites={filteredSites} resetKey={mapResetKey} />
         {flyTarget && <MapFlyTo position={flyTarget} zoom={15} />}
 
         {markers.map(({ site, icon, markerStatus, key }) => {
@@ -2113,8 +2151,8 @@ export default function CockpitPage() {
           WebkitBackdropFilter: 'blur(12px)',
         }}
       >
-        {/* System status indicators */}
-        <Space size={12} style={{ flexShrink: 0 }}>
+        {/* System status + update time */}
+        <Space size={8} style={{ flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div
               style={{
@@ -2130,26 +2168,12 @@ export default function CockpitPage() {
 
           <Text style={{ fontSize: 11, color: tokens.colorTextQuaternary }}>|</Text>
 
-          <Space size={4}>
-            <EnvironmentOutlined style={{ fontSize: 12, color: tokens.colorTextTertiary }} />
-            <Text style={{ fontSize: 11, color: tokens.colorTextTertiary }}>
-              站点 <Text style={{ fontSize: 11, color: tokens.colorPrimary, fontWeight: 600 }}>{sites.length}</Text>
-            </Text>
-          </Space>
-
-          <Space size={4}>
-            <AlertOutlined style={{ fontSize: 12, color: activeAlerts.length > 0 ? tokens.colorError : tokens.colorTextTertiary }} />
-            <Text style={{ fontSize: 11, color: tokens.colorTextTertiary }}>
-              告警 <Text style={{ fontSize: 11, color: activeAlerts.length > 0 ? tokens.colorError : tokens.colorTextTertiary, fontWeight: 600 }}>{activeAlerts.length}</Text>
-            </Text>
-          </Space>
-
-          <Space size={4}>
-            <CloudServerOutlined style={{ fontSize: 12, color: tokens.colorTextTertiary }} />
-            <Text style={{ fontSize: 11, color: tokens.colorTextTertiary }}>
-              设备 <Text style={{ fontSize: 11, color: tokens.colorText, fontWeight: 600 }}>{devices.length}</Text>
-            </Text>
-          </Space>
+          <ClockCircleOutlined style={{ fontSize: 11, color: tokens.colorTextQuaternary }} />
+          <Text style={{ fontSize: 11, color: tokens.colorTextQuaternary }}>
+            {lastRefresh
+              ? `更新于 ${String(lastRefresh.getHours()).padStart(2, '0')}:${String(lastRefresh.getMinutes()).padStart(2, '0')}:${String(lastRefresh.getSeconds()).padStart(2, '0')}`
+              : '尚未更新'}
+          </Text>
         </Space>
 
         {/* Alert ticker */}
@@ -2197,15 +2221,10 @@ export default function CockpitPage() {
           </div>
         )}
 
-        {/* Last refresh time */}
-        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
-          <ClockCircleOutlined style={{ fontSize: 11, color: tokens.colorTextQuaternary }} />
-          <Text style={{ fontSize: 11, color: tokens.colorTextQuaternary }}>
-            {lastRefresh
-              ? `更新于 ${String(lastRefresh.getHours()).padStart(2, '0')}:${String(lastRefresh.getMinutes()).padStart(2, '0')}:${String(lastRefresh.getSeconds()).padStart(2, '0')}`
-              : '尚未更新'}
-          </Text>
-        </div>
+        {/* Company name */}
+        <Text style={{ fontSize: 11, color: tokens.colorTextQuaternary, flexShrink: 0, marginLeft: 'auto' }}>
+          南昌骏扬实业有限公司
+        </Text>
       </div>
     </div>
   );

@@ -74,7 +74,7 @@ export default function MainLayout() {
   ];
 
   return (
-    <Layout style={{ height: '100vh', background: tokens.colorBgLayout }}>
+    <Layout style={{ height: '100vh', maxHeight: '100vh', background: tokens.colorBgLayout, overflow: 'hidden' }}>
       <Header
         style={{
           display: 'flex',
@@ -86,8 +86,10 @@ export default function MainLayout() {
           position: 'relative',
           zIndex: 100,
           height: 44,
+          lineHeight: '44px',
           gap: 16,
           overflow: 'hidden',
+          flexShrink: 0,
         }}
       >
         {/* Logo */}

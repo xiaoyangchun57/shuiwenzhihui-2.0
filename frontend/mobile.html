@@ -1251,7 +1251,11 @@ async function openWoDetail(orderNo){
   var html='<div class="iv-card"><div style="font-size:10px;color:var(--brand);font-family:monospace">'+esc(w.order_no)+'</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin:6px 0">'+esc(w.title)+'</div>';
   html+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"><span class="status-badge '+(w.level==='critical'?'sb-danger':'sb-info')+'">'+(w.level==='critical'?'紧急':w.level==='urgent'?'重要':'常规')+'</span><span class="status-badge '+sb+'">'+(SM[s]||esc(s))+'</span></div>';
   html+='<div style="font-size:12px;color:var(--text-tertiary)">站点: '+esc(w.site_name)+(w.assignee?' · 负责人: '+esc(w.assignee):'')+(w.sla_deadline?' · SLA: '+w.sla_deadline.substring(0,10):'')+'</div>';
+  // 描述/备注
+  if(w.description)html+='<div style="margin-top:8px;font-size:12px;color:var(--text-secondary);padding:8px;background:var(--bg-card);border-radius:6px;white-space:pre-wrap">'+esc(w.description)+'</div>';
   html+='<div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div><span class="progress-pct">'+pct+'%</span></div>';
+  // 已有图片展示
+  if(w.images){try{var imgs=JSON.parse(w.images);if(imgs&&imgs.length){html+='<div style="margin-top:12px;padding:10px;background:var(--bg-primary);border-radius:8px;font-size:12px;color:var(--text-secondary)"><div style="margin-bottom:6px;font-weight:500">现场照片</div><div style="display:flex;gap:6px;flex-wrap:wrap">';for(var ii=0;ii<imgs.length;ii++){html+='<img src="'+esc(imgs[ii])+'" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:.5px solid var(--border-color);cursor:pointer" onclick="event.stopPropagation();showPhotoPreview(\''+esc(imgs[ii])+'\')">'}html+='</div></div>'}}catch(ee){}}
   var acts=getWOActions(s);
   if(acts.length){html+='<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">';for(var i=0;i<acts.length;i++){html+='<button class="btn-sm" style="background:'+acts[i].bg+';color:#fff" onclick="doWOAction(\''+orderNo+'\',\''+acts[i].st+'\')">'+acts[i].label+'</button>'}html+='</div>'}
   // Photo upload
@@ -1283,7 +1287,15 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){
   var bs=document.querySelector('.bs-overlay.open');if(bs){bs.classList.remove('open')}
   var sd=document.getElementById('sd-overlay');if(sd&&sd.style.display!=='none'){sd.style.display='none'}
 }});
-// Photo preview helper
+// Photo preview helper — 支持重复选择照片
+// 图片预览弹窗（轻点关闭）
+function showPhotoPreview(url){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  ov.onclick=function(){ov.remove()};
+  ov.innerHTML='<img src="'+esc(url)+'" style="max-width:95%;max-height:95%;object-fit:contain;border-radius:4px;box-shadow:0 4px 30px rgba(0,0,0,0.5)"><span style="position:absolute;top:16px;right:20px;color:#fff;font-size:24px;cursor:pointer;opacity:0.7">\u2715</span>';
+  document.body.appendChild(ov);
+}
 function _previewPhoto(input,previewId){
   var file=input.files[0];if(!file)return;
   var reader=new FileReader();
@@ -1294,6 +1306,8 @@ function _previewPhoto(input,previewId){
     window['_img_'+input.id]=e.target.result;
   };
   reader.readAsDataURL(file);
+  // 重置input，允许重复选择同一文件
+  input.value='';
 }
 function getWOActions(status){
   var m={
@@ -1317,7 +1331,18 @@ async function doWOAction(orderNo,newStatus){
   if(btn){btn.disabled=true;btn.textContent='处理中...';btn.style.opacity='0.6'}
   var imgKey='_img_wo-photo-'+orderNo,imgData=window[imgKey]||'';
   var payload={status:newStatus};
-  if(imgData)payload.remark='[图片凭证] '+imgData.substring(0,100)+'...';
+  // 有图片数据 → 上传到服务器
+  if(imgData&&imgData.startsWith('data:')){
+    try{
+      var blob=await fetch(imgData).then(function(r){return r.blob()});
+      var fd=new FormData();fd.append('file',blob,'wo-photo.jpg');
+      var upR=await fetch(API+'/upload',{method:'POST',body:fd});
+      var upD=await upR.json();
+      if(upD&&upD.url)payload.images=JSON.stringify([upD.url]);
+    }catch(e){/* 上传失败继续提交，不阻塞 */}
+    // 清除已存储的图片数据，允许下次重新上传
+    delete window[imgKey];
+  }
   var success=false,errMsg='';
   for(var attempt=0;attempt<2;attempt++){
     if(attempt>0&&btn)btn.textContent='重试中...';
@@ -1466,6 +1491,7 @@ async function openInspItems(pid){
   var sites=plan.sites||[];
   _currentInspSiteId=plan.site_id||(sites.length?sites[0].id:null);
   _currentInspSiteName=plan.site_name||(sites.length?sites[0].site_name||sites[0].name:'');
+  _currentInspPlanId=pid;
   // 如果没有记录过"从哪来"，根据当前页面判断
   if(!_inspListMode){
     var homePage=document.getElementById('page-home');
@@ -1500,8 +1526,9 @@ async function openInspItems(pid){
           btns='<div style="display:flex;gap:4px;flex-shrink:0"><button class="btn-sm" style="background:var(--brand-light);color:var(--brand);font-size:11px;padding:4px 8px;border:none;cursor:pointer" onclick="event.stopPropagation();checkItem('+t.id+',\'normal\',\''+esc(t.check_item).replace(/\'/g,"\\'")+'\')">正常</button><button class="btn-sm" style="background:var(--danger-bg);color:var(--danger);font-size:11px;padding:4px 8px;border:none;cursor:pointer" onclick="event.stopPropagation();checkItem('+t.id+',\'abnormal\',\''+esc(t.check_item).replace(/\'/g,"\\'")+'\')">异常</button></div>';
         }
         var textStyle='font-size:13px;color:var(--text-primary);white-space:normal;word-break:keep-all';
+        var clickReview=done?' onclick="event.stopPropagation();reviewCheckItem('+t.id+',\''+esc(t.check_item).replace(/\'/g,"\\'")+'\',\''+(isAb?'异常':'正常')+'\',\''+esc(t.remark||'').replace(/\'/g,"\\'")+'\',\''+esc(t.photo||'').replace(/\'/g,"\\'")+'\')"':'';
         var remarkHtml=t.remark?'<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;white-space:normal;word-break:keep-all">备注: '+esc(t.remark)+'</div>':'';
-        html+='<div class="iv-card" id="ck-item-'+t.id+'" style="display:flex;align-items:center;gap:10px;overflow-wrap:normal">'
+        html+='<div class="iv-card" id="ck-item-'+t.id+'"'+clickReview+' style="display:flex;align-items:center;gap:10px;overflow-wrap:normal'+(done?';cursor:pointer':'')+'">'
           +'<span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;background:'+statusBg+'">'+statusIcon+'</span>'
           +'<div style="flex:1;min-width:0;max-width:100%"><div style="'+textStyle+'">'+esc(t.check_item)+'</div>'+remarkHtml+'</div>'
           +btns
@@ -1561,6 +1588,16 @@ function _onCheckPhoto(inp){
     document.getElementById('check-photo-preview').style.display='block';
   };
   reader.readAsDataURL(inp.files[0]);
+  // 重置input，允许重复拍照/选择
+  inp.value='';
+}
+// 图片预览弹窗
+function showPhotoPreview(url){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  ov.onclick=function(){ov.remove()};
+  ov.innerHTML='<img src="'+esc(url)+'" style="max-width:95%;max-height:95%;object-fit:contain;border-radius:4px;box-shadow:0 4px 30px rgba(0,0,0,0.5)"><span style="position:absolute;top:16px;right:20px;color:#fff;font-size:24px;cursor:pointer;opacity:0.7">✕</span>';
+  document.body.appendChild(ov);
 }
 function _clearCheckPhoto(){
   document.getElementById('check-photo-img').src='';
@@ -1597,34 +1634,47 @@ async function _submitCheckResult(){
   if(r&&(r.success||!r.error)){
     showToast('已标记为'+(result==='normal'?'正常':'异常'));
     _closeCheckModal();
-    var el=document.getElementById('ck-item-'+taskId);if(el)el.style.opacity='0.5';
-    // 异常且勾选了转工单 → 自动创建工单
+    // 刷新当前巡检计划的检查项列表（即时更新状态）
+    if(_currentInspPlanId)setTimeout(function(){openInspItems(_currentInspPlanId)},300);
+    // 异常且勾选了转工单 → 自动创建工单（携带照片和备注）
     if(result==='abnormal'&&document.getElementById('check-create-wo').checked){
       var itemName=document.getElementById('check-modal-item').textContent;
       var now2=new Date();var ds=now2.getFullYear()+'-'+(now2.getMonth()+1)+'-'+now2.getDate();
       var woPayload={
         site_id:_currentInspSiteId||0,source:'inspection',event_type:'abnormal',level:'medium',
         title:'巡检异常: '+itemName,
-        description:'巡检异常（'+ds+'）\n站点: '+_currentInspSiteName+'\n检查项: '+itemName
+        description:'巡检异常（'+ds+'）\n站点: '+_currentInspSiteName+'\n检查项: '+itemName+(remark?'\n备注: '+remark:'')+(_checkGps?'\nGPS: '+_checkGps.lat.toFixed(4)+','+_checkGps.lng.toFixed(4):'')
       };
+      if(photoUrl)woPayload.images=JSON.stringify([photoUrl]);
       var woR=await afP('/workorders',woPayload);
       if(woR&&woR.success)showToast('已标记异常并生成工单');
     }
     setTimeout(function(){refreshData()},500)
   }else{showToast('提交失败');btn.disabled=false;btn.textContent='确认提交'}
 }
-// ===== 异常转工单 =====
+// ===== 异常转工单（带照片和备注） =====
+function reviewCheckItem(taskId,itemName,status,remark,photoUrl){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center';
+  ov.onclick=function(e){if(e.target===ov)ov.remove()};
+  var photoHtml=photoUrl?'<div style="margin-bottom:8px;border-radius:6px;overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showPhotoPreview(\''+esc(photoUrl)+'\')"><img src="'+esc(photoUrl)+'" style="width:100%;max-height:180px;object-fit:cover;display:block;border-radius:6px" onerror="this.style.display=\'none\'"></div>':'';
+  ov.innerHTML='<div style="background:var(--bg-card);border-radius:12px;padding:24px;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,.2)"><div style="font-size:16px;font-weight:500;color:var(--text-primary);margin-bottom:4px">'+esc(itemName)+'</div><div style="display:flex;gap:8px;margin-bottom:12px"><span class="status-badge '+(status==='异常'?'sb-danger':'sb-success')+'">'+esc(status)+'</span></div>'+photoHtml+(remark?'<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;padding:8px;background:var(--bg-primary);border-radius:6px">备注: '+esc(remark)+'</div>':'')+'<button class="btn-sm" style="background:var(--bg-primary);color:var(--text-secondary);border:1px solid var(--border-color);padding:6px 20px;cursor:pointer" onclick="this.closest(\'[style*=z-index:1000]\').remove()">关闭</button></div>';
+  document.body.appendChild(ov);
+}
 async function _createWOFromInspection(taskId,siteId,itemName,siteName){
   if(!confirm('为 "'+itemName+'" 创建异常工单？'))return;
   var now=new Date();var ds=now.getFullYear()+'-'+(now.getMonth()+1)+'-'+now.getDate();
+  var photoUrl=document.getElementById('check-photo-url').value;
+  var remark=document.getElementById('check-remark').value.trim();
   var payload={
     site_id:siteId,
     source:'inspection',
     event_type:'abnormal',
     level:'medium',
     title:'巡检异常: '+itemName,
-    description:'巡检异常（'+ds+'）\n检查项: '+itemName+'\n站点: '+siteName
+    description:'巡检异常（'+ds+'）\n检查项: '+itemName+'\n站点: '+siteName+(remark?'\n备注: '+remark:'')
   };
+  if(photoUrl)payload.images=JSON.stringify([photoUrl]);
   var r=await afP('/workorders',payload);
   if(r&&r.success){
     showToast('已生成工单: '+(r.order_no||''));
@@ -2002,7 +2052,7 @@ function toggleManual(idx){
 
 // ===== Inline View Management =====
 var _inspListMode=false;
-var _currentInspSiteId=null,_currentInspSiteName='';
+var _currentInspSiteId=null,_currentInspSiteName='',_currentInspPlanId=0;
 var _inspEntrySource='home'; // 'home' | 'panel' - 从哪进的详情，返回时就回哪
 function closeInspList(){
   if(_inspListMode){

@@ -221,11 +221,12 @@ export default function SitesPage() {
   );
 
   // ========================================================================
-  // Client-side filtering
+  // Client-side filtering + sorting (abnormal sites first)
   // ========================================================================
+  const statusPriority = { offline: 0, maintenance: 1, normal: 2, online: 2 };
   const filteredSites = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
-    return sites.filter((site) => {
+    const result = sites.filter((site) => {
       if (keyword) {
         const nameMatch = (site.name || '').toLowerCase().includes(keyword);
         const codeMatch = (site.code || '').toLowerCase().includes(keyword);
@@ -236,6 +237,14 @@ export default function SitesPage() {
       if (managerFilter && site.manager !== managerFilter) return false;
       return true;
     });
+    // Sort: abnormal (offline/maintenance) first, then by name
+    result.sort((a, b) => {
+      const pa = statusPriority[a.status] ?? 2;
+      const pb = statusPriority[b.status] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return (a.name || '').localeCompare(b.name || '', 'zh');
+    });
+    return result;
   }, [sites, searchText, typeFilter, districtFilter, managerFilter]);
 
   // ========================================================================
@@ -408,7 +417,7 @@ export default function SitesPage() {
 
     const {
       name, code, type, district, address, manager, status,
-      lat, lng, build_date, equipment, history_records,
+      lat, lng, build_date, elevation, equipment, history_records,
       description: siteDesc, contact, area, basin,
       fault_records, replacement_records, inspection_records, calibration_reports,
     } = archiveData;
@@ -429,6 +438,7 @@ export default function SitesPage() {
       { key: 'district', label: '所属区县', children: extractDistrict(district) || '-' },
       { key: 'address', label: '详细地址', children: address || '-', span: 2 },
       { key: 'basin', label: '所属流域', children: basin || '-' },
+      { key: 'elevation', label: '海拔高程', children: elevation ? `${elevation}m` : '-' },
       {
         key: 'coordinates',
         label: '经纬度',
@@ -494,9 +504,10 @@ export default function SitesPage() {
     // Equipment list - always show tab
     const equipmentList = equipment || [];
     const eqColumns = [
-      { title: '设备名称', dataIndex: 'name', key: 'name' },
-      { title: '设备型号', dataIndex: 'model', key: 'model' },
-      { title: '安装日期', dataIndex: 'install_date', key: 'install_date' },
+      { title: '设备名称', dataIndex: 'device_name', key: 'device_name', render: (v) => v || '-' },
+      { title: '设备型号', dataIndex: 'device_model', key: 'device_model', render: (v) => v || '-' },
+      { title: '生产厂家', dataIndex: 'manufacturer', key: 'manufacturer', render: (v) => v || '-' },
+      { title: '安装日期', dataIndex: 'install_date', key: 'install_date', render: (v) => v || '-' },
       {
         title: '状态',
         dataIndex: 'status',
