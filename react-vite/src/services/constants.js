@@ -1,3 +1,10 @@
+/**
+ * ══════════════════════════════════════════════
+ *  水文监测智慧运营平台 — 常量定义
+ *  ⚠️ 此为正式源码，`frontend/shared/constants.js` 为旧版同步副本
+ *  新增常量请仅在此处添加，确保单源一致
+ * ══════════════════════════════════════════════
+ */
 // Station type mappings
 export const stationTypeMap = {
   rainfall: '雨量站',
@@ -24,6 +31,7 @@ export const orderStatusMap = {
 // Work order level mappings
 export const orderLevelMap = {
   normal: '一般',
+  medium: '一般',
   urgent: '紧急',
   critical: '重大',
   red: '重大',
@@ -39,6 +47,7 @@ export const orderSourceMap = {
   manual: '人工',
   superior: '上级',
   hotline: '热线',
+  inspection: '巡检',
   alert_convert: '告警转工单',
   alert_auto: '告警自动生成',
 };

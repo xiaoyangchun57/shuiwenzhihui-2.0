@@ -22,6 +22,7 @@ const { RangePicker } = DatePicker;
 
 const levelColorMap = {
   normal: 'default',
+  medium: 'default',
   urgent: 'orange',
   critical: 'red',
 };

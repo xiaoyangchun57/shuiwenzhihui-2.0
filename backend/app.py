@@ -3538,6 +3538,57 @@ def create_workorder():
     data = request.get_json(force=True, silent=True)
     if not data:
         return jsonify({'error': '无效的请求数据'}), 400
+
+    # ---- 字段规范化：移动端可能写入非标准值，统一映射为Web端标准值 ----
+    # 来源规范化
+    _source_map = {
+        'inspection': 'inspection', '巡检': 'inspection',
+        'patrol': 'patrol', '巡查': 'patrol',
+        'auto': 'auto', '自动': 'auto',
+        'manual': 'manual', '人工': 'manual',
+        'superior': 'superior', '上级': 'superior',
+        'hotline': 'hotline', '热线': 'hotline',
+        'alert_convert': 'alert_convert', '告警转工单': 'alert_convert',
+        'alert_auto': 'alert_auto',
+    }
+    raw_source = (data.get('source') or 'manual').strip().lower()
+    data['source'] = _source_map.get(raw_source, raw_source if raw_source in _source_map.values() else 'manual')
+
+    # 级别规范化
+    _level_map = {
+        'normal': 'normal', '一般': 'normal', 'blue': 'normal', 'yellow': 'normal',
+        'medium': 'normal',
+        'urgent': 'urgent', '紧急': 'urgent', 'orange': 'urgent',
+        'critical': 'critical', '重大': 'critical', 'red': 'critical',
+    }
+    raw_level = (data.get('level') or 'normal').strip().lower()
+    data['level'] = _level_map.get(raw_level, raw_level if raw_level in _level_map.values() else 'normal')
+
+    # ---- 自动填充负责人：从当前登录用户获取 ----
+    assignee = (data.get('assignee') or '').strip()
+    if not assignee:
+        # 尝试从token中提取当前用户
+        auth = request.headers.get('Authorization', '')
+        token = auth.replace('Bearer ', '').strip() if auth.startswith('Bearer ') else ''
+        user = _tokens.get(token)
+        if user:
+            assignee = user.get('username') or user.get('name') or ''
+
+    # ---- 去重：同站点+同来源+相似标题的未关闭工单已存在则返回已有工单 ----
+    title = (data.get('title') or '').strip()
+    site_id = data.get('site_id')
+    source = data.get('source', 'manual')
+    if site_id and title:
+        with get_db() as db:
+            existing = db.execute(
+                "SELECT order_no, title FROM work_orders WHERE site_id=? AND source=? AND status NOT IN ('closed') ORDER BY id DESC LIMIT 5",
+                (site_id, source)
+            ).fetchall()
+            for ex in existing:
+                # 标题相似度判断：前20个字符相同即视为重复
+                if ex['title'] and ex['title'][:20] == title[:20]:
+                    return jsonify({'success': True, 'order_no': ex['order_no'], 'duplicate': True})
+
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -3546,7 +3597,6 @@ def create_workorder():
                 order_no = f"WO-{now.strftime('%Y%m%d')}-{random.randint(100,999)}"
                 sla_hours = {'normal': 72, 'urgent': 24, 'critical': 2}.get(data.get('level','normal'), 72)
                 sla_deadline = (now + timedelta(hours=sla_hours)).strftime('%Y-%m-%d %H:%M')
-                assignee = data.get('assignee','')
                 # 直接创建为 in_progress（待受理→已受理→已派发→处置中，系统瞬间完成）
                 db.execute("""
                     INSERT INTO work_orders (order_no,site_id,source,event_type,level,title,description,images,assignee,status,sla_deadline)
@@ -3554,7 +3604,7 @@ def create_workorder():
                 """, (
                     order_no, data.get('site_id'), data.get('source','manual'),
                     data.get('event_type',''), data.get('level','normal'),
-                    data.get('title',''), data.get('description',''),
+                    title, data.get('description',''),
                     data.get('images',''), assignee,
                     'in_progress', sla_deadline
                 ))
@@ -4127,18 +4177,55 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    """上传图片/附件，返回可访问的URL。支持 multipart/form-data，字段名 file"""
+    """上传图片/附件，返回可访问的URL。支持 multipart/form-data，字段名 file。
+    图片自动压缩（最大边1920px，质量0.7），单文件上限5MB。"""
     file = request.files.get('file')
-    if not file: return jsonify({'error':'请选择文件'}),400
-    ext = os.path.splitext(file.filename or '.jpg')[1] or '.jpg'
-    fname = str(uuid.uuid4())[:8] + ext
+    if not file:
+        return jsonify({'error': '请选择文件'}), 400
+
+    ext = os.path.splitext(file.filename or '.jpg')[1].lower() or '.jpg'
+    image_exts = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+
+    # 读取文件内容，检查大小
+    file_data = file.read()
+    if len(file_data) > 5 * 1024 * 1024:
+        return jsonify({'error': '文件大小超过5MB限制'}), 400
+
+    # 图片压缩处理
+    if ext in image_exts:
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(file_data))
+            # 限制最大边为1920px
+            max_side = 1920
+            if max(img.size) > max_side:
+                ratio = max_side / max(img.size)
+                new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+                img = img.resize(new_size, Image.LANCZOS)
+            # 转换为RGB（如果是PNG带透明通道）
+            if ext in ('.jpg', '.jpeg') or ext == '.png':
+                if img.mode in ('RGBA', 'P'):
+                    img = img.convert('RGB')
+            # 保存为压缩JPEG
+            buf = io.BytesIO()
+            save_ext = '.jpg'
+            if ext == '.png':
+                img.save(buf, format='PNG', optimize=True)
+            else:
+                img.save(buf, format='JPEG', quality=70, optimize=True)
+            file_data = buf.getvalue()
+        except ImportError:
+            pass  # Pillow未安装，跳过压缩
+        except Exception:
+            pass  # 压缩失败，使用原文件
+
+    fname = str(uuid.uuid4())[:8] + (ext if ext in image_exts else '.jpg')
     path = os.path.join(UPLOAD_DIR, fname)
-    file.save(path)
-    # 返回相对路径 URL
-    return jsonify({'success':True,'url':'/uploads/'+fname})
+    with open(path, 'wb') as f:
+        f.write(file_data)
+    return jsonify({'success': True, 'url': '/uploads/' + fname})
 
-
-@app.route('/api/sites/<int:site_id>/schemes')
 
 @app.route('/api/sites/<int:site_id>/schemes')
 def get_site_schemes(site_id):
@@ -4499,16 +4586,17 @@ def mark_all_notifications_read():
 # --- Workorder management ---
 @app.route('/api/workorders/<order_no>', methods=['DELETE'])
 def delete_workorder(order_no):
-    """删除工单（仅支持待受理或已完成的工单）"""
+    """删除工单（支持待受理、已受理、处置中、审核中或已完成的工单）"""
     with get_db() as db:
         cur = db.execute('SELECT status FROM work_orders WHERE order_no=?', (order_no,)).fetchone()
         if not cur:
             return jsonify({'error': 'not found'}), 404
-        if cur['status'] not in ('pending', 'closed'):
-            return jsonify({'error': '只能删除待受理或已完成的工单'}), 400
+        if cur['status'] not in ('pending', 'accepted', 'in_progress', 'reviewing', 'closed'):
+            return jsonify({'error': '当前状态不允许删除'}), 400
         db.execute('DELETE FROM work_orders WHERE order_no=?', (order_no,))
         db.execute("DELETE FROM timeline_events WHERE source_type='workorder' AND source_id=?", (order_no,))
         db.commit()
+        return jsonify({'success': True, 'message': '工单已删除'})
 # --- Maintenance Templates ---
 @app.route('/api/maintenance/templates')
 def get_maintenance_templates():
@@ -6801,15 +6889,16 @@ def _filter_site_ids():
 
 # ===================== 前端静态文件服务 =====================
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+V2_DIR = os.path.join(FRONTEND_DIR, 'v2')
 
 @app.route('/')
 def index_html():
-    return send_from_directory(FRONTEND_DIR, 'dashboard.html')
+    return send_from_directory(V2_DIR, 'index.html')
 
-# 移动端（放在catch-all前面）
+# 移动端 — 统一使用 React 版本（响应式）
 @app.route('/mobile')
 def mobile_page():
-    return send_from_directory(FRONTEND_DIR, 'mobile.html')
+    return send_from_directory(V2_DIR, 'index.html')
 
 # ===================== Site Data Import & Data Sources =====================
 
@@ -6934,7 +7023,16 @@ def download_site_template():
 
 @app.route('/<path:filename>')
 def serve_frontend(filename):
-    return send_from_directory(FRONTEND_DIR, filename)
+    # SPA 路由回退：非 API 路径且非实际文件 → 返回 React 入口
+    # 让 React Router 处理客户端路由
+    v2_path = os.path.join(V2_DIR, filename)
+    frontend_path = os.path.join(FRONTEND_DIR, filename)
+    if os.path.exists(v2_path):
+        return send_from_directory(V2_DIR, filename)
+    if os.path.exists(frontend_path):
+        return send_from_directory(FRONTEND_DIR, filename)
+    # SPA 回退：所有未匹配的路径都返回 v2/index.html
+    return send_from_directory(V2_DIR, 'index.html')
 
 # ===================== Startup =====================
 
@@ -6946,6 +7044,402 @@ def fix_site_river():
         conn.commit()
         updated = conn.total_changes
         print(f"[Fix] 已更新 {updated} 个站点的河流字段")
+
+
+# =============================================================================
+# 移动端专用接口 —— 一线执行助手
+# =============================================================================
+
+# 频次中文映射（移动端统一使用此映射，不用 high/mid/low）
+_FREQ_CN = {
+    'daily': '每日', 'weekly': '每周', 'monthly': '每月',
+    'quarterly': '每季', 'semi_annual': '每半年', 'annual': '每年',
+    'high': '每日', 'mid': '每月', 'low': '每季', 'annual': '每年',
+}
+
+
+@app.route('/api/mobile/my-today')
+@login_required
+def mobile_my_today():
+    """移动端首页聚合接口：一次请求返回当前用户今日所有任务数据。
+    包含：巡检任务（按站点分组）、待处理工单、未处理告警。
+    """
+    user = g.current_user
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    with get_db() as db:
+        # ---- 1. 巡检任务：从 V2 计划中获取当前用户未完成的检查项 ----
+        is_admin = user.get('role') == 'admin'
+
+        if is_admin:
+            # 管理员查看所有活跃计划
+            plans = db.execute(
+                "SELECT * FROM insp_plans WHERE status IN ('active','draft') ORDER BY generate_date DESC"
+            ).fetchall()
+        else:
+            # 普通用户只查看分配给自己的计划
+            plans = db.execute(
+                "SELECT * FROM insp_plans WHERE assignee_id=? AND status IN ('active','draft') ORDER BY generate_date DESC",
+                (user['id'],)
+            ).fetchall()
+            # 如果没有指定用户的计划，也查找未指定用户的计划
+            if not plans:
+                plans = db.execute(
+                    "SELECT * FROM insp_plans WHERE status IN ('active','draft') AND (assignee_id IS NULL OR assignee_id=0) ORDER BY generate_date DESC"
+                ).fetchall()
+
+        # 收集所有未完成的检查项，按站点分组
+        site_tasks = {}  # site_id -> {site_name, site_code, lat, lng, type, items: []}
+        total_items = 0
+        completed_items = 0
+        abnormal_items = 0
+
+        for plan in plans:
+            items = db.execute(
+                """SELECT pi.*, s.name as site_name, s.code as site_code,
+                          s.lat, s.lng, s.type as site_type
+                   FROM insp_plan_items pi
+                   JOIN sites s ON s.id = pi.site_id
+                   WHERE pi.plan_id=? AND pi.result IS NULL
+                   ORDER BY pi.category, pi.item_name""",
+                (plan['id'],)
+            ).fetchall()
+
+            for item in items:
+                sid = item['site_id']
+                if sid not in site_tasks:
+                    site_tasks[sid] = {
+                        'site_id': sid,
+                        'site_name': item['site_name'],
+                        'site_code': item['site_code'],
+                        'lat': item['lat'],
+                        'lng': item['lng'],
+                        'site_type': item['site_type'],
+                        'items': [],
+                        'categories': {},
+                    }
+                freq_cn = _FREQ_CN.get(item['frequency'] or '', item['frequency'] or '')
+                item_dict = {
+                    'item_id': item['id'],
+                    'plan_id': item['plan_id'],
+                    'item_name': item['item_name'],
+                    'category': item['category'] or '其他',
+                    'frequency': item['frequency'] or '',
+                    'frequency_cn': freq_cn,
+                    'result': item['result'],
+                    'calibrator': item['calibrator'],
+                    'calibration_values': item['calibration_values'],
+                    'photo_urls': item['photo_urls'],
+                    'remark': item['remark'],
+                }
+                site_tasks[sid]['items'].append(item_dict)
+                # 按类别分组
+                cat = item['category'] or '其他'
+                if cat not in site_tasks[sid]['categories']:
+                    site_tasks[sid]['categories'][cat] = []
+                site_tasks[sid]['categories'][cat].append(item_dict)
+
+        # 统计所有项（包括已完成）
+        for plan in plans:
+            all_items = db.execute(
+                "SELECT result FROM insp_plan_items WHERE plan_id=?", (plan['id'],)
+            ).fetchall()
+            for it in all_items:
+                total_items += 1
+                if it['result'] is not None:
+                    completed_items += 1
+                    if it['result'] == 'abnormal':
+                        abnormal_items += 1
+
+        # 构建站点列表
+        sites_list = []
+        for sid, st in site_tasks.items():
+            pending = len(st['items'])
+            cats_summary = []
+            for cat_name, cat_items in st['categories'].items():
+                cats_summary.append({
+                    'category': cat_name,
+                    'pending': len(cat_items),
+                })
+            sites_list.append({
+                'site_id': sid,
+                'site_name': st['site_name'],
+                'site_code': st['site_code'],
+                'lat': st['lat'],
+                'lng': st['lng'],
+                'site_type': st['site_type'],
+                'pending_items': pending,
+                'categories': cats_summary,
+            })
+
+        # 按站点名称排序
+        sites_list.sort(key=lambda x: x['site_name'])
+
+        # ---- 2. 待处理工单：当前用户负责的或全部分配的 ----
+        workorders = db.execute(
+            """SELECT order_no, title, status, source, level, site_id,
+                      (SELECT name FROM sites WHERE id=work_orders.site_id) as site_name,
+                      created_at, sla_deadline
+               FROM work_orders
+               WHERE status NOT IN ('closed')
+                     AND (assignee=? OR assignee='' OR assignee IS NULL)
+               ORDER BY
+                 CASE level WHEN 'critical' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END,
+                 created_at DESC
+               LIMIT 20""",
+            (user.get('username', ''),)
+        ).fetchall()
+
+        wo_list = []
+        for wo in workorders:
+            wo_list.append({
+                'order_no': wo['order_no'],
+                'title': wo['title'],
+                'status': wo['status'],
+                'source': wo['source'],
+                'level': wo['level'],
+                'site_id': wo['site_id'],
+                'site_name': wo['site_name'],
+                'created_at': wo['created_at'],
+                'sla_deadline': wo['sla_deadline'],
+            })
+
+        # ---- 3. 未处理告警：当前用户负责站点的 ----
+        user_site_ids = [s['site_id'] for s in sites_list]
+        if user_site_ids:
+            placeholders = ','.join(['?'] * len(user_site_ids))
+            alerts = db.execute(
+                f"""SELECT id, site_id, metric, level, message, status, created_at,
+                           (SELECT name FROM sites WHERE id=alerts.site_id) as site_name
+                    FROM alerts
+                    WHERE status='pending' AND site_id IN ({placeholders})
+                    ORDER BY
+                      CASE level WHEN 'red' THEN 1 WHEN 'orange' THEN 2 WHEN 'yellow' THEN 3 ELSE 4 END,
+                      created_at DESC
+                    LIMIT 15""",
+                user_site_ids
+            ).fetchall()
+        else:
+            alerts = []
+
+        alert_list = []
+        for a in alerts:
+            alert_list.append({
+                'id': a['id'],
+                'site_id': a['site_id'],
+                'site_name': a['site_name'],
+                'metric': a['metric'],
+                'level': a['level'],
+                'message': a['message'],
+                'status': a['status'],
+                'created_at': a['created_at'],
+            })
+
+        # ---- 汇总 ----
+        return jsonify({
+            'summary': {
+                'total_sites': len(sites_list),
+                'total_items': total_items,
+                'completed_items': completed_items,
+                'pending_items': total_items - completed_items,
+                'abnormal_items': abnormal_items,
+                'pending_workorders': len(wo_list),
+                'pending_alerts': len(alert_list),
+                'date': today,
+            },
+            'sites': sites_list,
+            'workorders': wo_list,
+            'alerts': alert_list,
+        })
+
+
+@app.route('/api/mobile/site-tasks/<int:site_id>')
+@login_required
+def mobile_site_tasks(site_id):
+    """移动端站点任务详情：返回该站点所有待检检查项（含已完成），按类别分组。"""
+    user = g.current_user
+
+    with get_db() as db:
+        site = db.execute("SELECT * FROM sites WHERE id=?", (site_id,)).fetchone()
+        if not site:
+            return jsonify({'error': '站点不存在'}), 404
+
+        # 获取该站点的所有检查项（来自活跃计划）
+        plans = db.execute(
+            "SELECT id FROM insp_plans WHERE status IN ('active','draft')"
+        ).fetchall()
+        plan_ids = [p['id'] for p in plans]
+
+        if not plan_ids:
+            return jsonify({
+                'site': {'id': site['id'], 'name': site['name'], 'code': site['code'],
+                         'lat': site['lat'], 'lng': site['lng'], 'type': site['type']},
+                'categories': [],
+                'total': 0, 'completed': 0,
+            })
+
+        placeholders = ','.join(['?'] * len(plan_ids))
+        items = db.execute(
+            f"""SELECT pi.* FROM insp_plan_items pi
+                WHERE pi.site_id=? AND pi.plan_id IN ({placeholders})
+                ORDER BY pi.category, pi.item_name""",
+            [site_id] + plan_ids
+        ).fetchall()
+
+        # 按类别分组
+        categories = {}
+        total = 0
+        completed = 0
+        for item in items:
+            total += 1
+            if item['result'] is not None:
+                completed += 1
+            cat = item['category'] or '其他'
+            if cat not in categories:
+                categories[cat] = {'category': cat, 'items': [], 'total': 0, 'completed': 0}
+            categories[cat]['total'] += 1
+            if item['result'] is not None:
+                categories[cat]['completed'] += 1
+            freq_cn = _FREQ_CN.get(item['frequency'] or '', item['frequency'] or '')
+            categories[cat]['items'].append({
+                'item_id': item['id'],
+                'plan_id': item['plan_id'],
+                'item_name': item['item_name'],
+                'frequency': item['frequency'] or '',
+                'frequency_cn': freq_cn,
+                'result': item['result'],
+                'remark': item['remark'],
+                'check_time': item['check_time'],
+                'calibrator': item['calibrator'],
+                'calibration_values': item['calibration_values'],
+                'photo_urls': item['photo_urls'],
+            })
+
+        return jsonify({
+            'site': {'id': site['id'], 'name': site['name'], 'code': site['code'],
+                     'lat': site['lat'], 'lng': site['lng'], 'type': site['type']},
+            'categories': list(categories.values()),
+            'total': total,
+            'completed': completed,
+        })
+
+
+@app.route('/api/sites/<int:site_id>/calibrate', methods=['PUT'])
+@login_required
+def calibrate_site_location(site_id):
+    """站点位置校准：一线人员到场后校准站点经纬度。"""
+    data = request.get_json(silent=True) or {}
+    new_lat = data.get('lat')
+    new_lng = data.get('lng')
+    if new_lat is None or new_lng is None:
+        return jsonify({'error': '请提供经纬度'}), 400
+
+    with get_db() as db:
+        site = db.execute("SELECT * FROM sites WHERE id=?", (site_id,)).fetchone()
+        if not site:
+            return jsonify({'error': '站点不存在'}), 404
+
+        old_lat = site['lat']
+        old_lng = site['lng']
+
+        # 计算偏移距离（简化公式，单位：米）
+        import math
+        dlat = math.radians(new_lat - old_lat) if old_lat else 0
+        dlng = math.radians(new_lng - old_lng) if old_lng else 0
+        a = math.sin(dlat/2)**2 + math.cos(math.radians(old_lat or 0)) * math.cos(math.radians(new_lat)) * math.sin(dlng/2)**2
+        distance_m = 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)) if old_lat and old_lng else 0
+
+        # 更新站点坐标
+        db.execute("UPDATE sites SET lat=?, lng=? WHERE id=?", (new_lat, new_lng, site_id))
+
+        # 记录校准日志
+        user = g.current_user
+        db.execute(
+            "INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+            ('site', site_id, 'calibrated', user.get('username', ''),
+             f'位置校准: ({old_lat},{old_lng}) → ({new_lat},{new_lng}), 偏移{distance_m:.1f}m')
+        )
+        db.commit()
+
+        return jsonify({
+            'success': True,
+            'old_lat': old_lat, 'old_lng': old_lng,
+            'new_lat': new_lat, 'new_lng': new_lng,
+            'distance_m': round(distance_m, 1),
+        })
+
+
+@app.route('/api/mobile/submit-item', methods=['POST'])
+@login_required
+def mobile_submit_item():
+    """移动端提交检查项结果（统一入口，支持普通项和校准项）。"""
+    data = request.get_json(silent=True) or {}
+    item_id = data.get('item_id')
+    plan_id = data.get('plan_id')
+    result = data.get('result')  # 'normal' or 'abnormal'
+
+    if not item_id or not result:
+        return jsonify({'error': '缺少必要参数'}), 400
+
+    with get_db() as db:
+        item = db.execute("SELECT * FROM insp_plan_items WHERE id=?", (item_id,)).fetchone()
+        if not item:
+            return jsonify({'error': '检查项不存在'}), 404
+        if item['result'] is not None:
+            return jsonify({'error': '该检查项已完成', 'duplicate': True}), 400
+
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        updates = ["result=?", "check_time=?", "completed_at=?"]
+        params = [result, now, now]
+
+        if data.get('remark'):
+            updates.append("remark=?")
+            params.append(data['remark'])
+        if data.get('gps_lat') is not None:
+            updates.append("gps_lat=?")
+            params.append(data['gps_lat'])
+        if data.get('gps_lng') is not None:
+            updates.append("gps_lng=?")
+            params.append(data['gps_lng'])
+        if data.get('photo_urls'):
+            updates.append("photo_urls=?")
+            params.append(data['photo_urls'])
+        if data.get('calibrator'):
+            updates.append("calibrator=?")
+            params.append(data['calibrator'])
+        if data.get('calibration_values'):
+            updates.append("calibration_values=?")
+            params.append(data['calibration_values'])
+
+        params.append(item_id)
+        db.execute(f"UPDATE insp_plan_items SET {','.join(updates)} WHERE id=?", params)
+
+        # 异常项自动触发告警
+        if result == 'abnormal':
+            task = db.execute("SELECT site_id, item_name FROM insp_plan_items WHERE id=?", (item_id,)).fetchone()
+            if task:
+                remark_text = data.get('remark', '')
+                msg = f'巡检异常：{task["item_name"]}'
+                if remark_text:
+                    msg += f' - {remark_text}'
+                create_alert_internal(db, task['site_id'], 'inspection', 0, 'yellow', msg)
+
+        # 更新计划完成率和状态
+        if plan_id:
+            total = db.execute("SELECT COUNT(*) as c FROM insp_plan_items WHERE plan_id=?", (plan_id,)).fetchone()['c']
+            done = db.execute("SELECT COUNT(*) as c FROM insp_plan_items WHERE plan_id=? AND result IS NOT NULL", (plan_id,)).fetchone()['c']
+            rate = round(done / total * 100, 1) if total > 0 else 0
+            new_status = 'completed' if done == total else 'active'
+            db.execute("UPDATE insp_plans SET completion_rate=?, status=? WHERE id=?",
+                       (rate, new_status, plan_id))
+            if done == total:
+                plan = db.execute("SELECT plan_name FROM insp_plans WHERE id=?", (plan_id,)).fetchone()
+                db.execute("INSERT INTO timeline_events (source_type,source_id,event_type,operator,remark) VALUES (?,?,?,?,?)",
+                           ('inspection', plan_id, 'completed', '系统', f'巡检计划完成-{plan["plan_name"] if plan else ""}'))
+
+        db.commit()
+        return jsonify({'success': True, 'result': result})
+
 
 if __name__ == '__main__':
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)

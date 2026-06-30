@@ -3,13 +3,13 @@
 
 var API = '/api';
 
-// Token 管理
-function _authHdrs(){var h={};var t='';try{t=localStorage.getItem('water_ops_token')||''}catch(e){}if(t)h['Authorization']='Bearer '+t;return h}
+// Token 管理（优先使用 window._token 缓存，其次 localStorage）
+function _authHdrs(){var h={};var t='';try{t=window._token||localStorage.getItem('water_ops_token')||''}catch(e){}if(t)h['Authorization']='Bearer '+t;return h}
 
-// 登录状态管理
+// 登录状态管理（统一调用 showLogin）
 function _handle401(){
-  try{localStorage.removeItem('water_ops_token')}catch(e){}
-  // 由各页面自己的登录/退出逻辑处理
+  try{window._token='';localStorage.removeItem('water_ops_token')}catch(e){}
+  if(typeof showLogin==='function')showLogin()
 }
 
 // GET 请求（带超时）
